@@ -1,11 +1,22 @@
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from dataclasses import dataclass
 from datetime import datetime
 import numpy as np
-from torch_geometric.data import Data
 
-from .dga_detector import DGADetector
-from .tdgnn import TDGNN
+try:
+    from torch_geometric.data import Data
+    HAS_TORCH = True
+except ImportError:
+    HAS_TORCH = False
+    Data = Any
+
+try:
+    from .dga_detector import DGADetector
+    from .tdgnn import TDGNN
+except ImportError:
+    DGADetector = None
+    TDGNN = None
+
 from features.lexical import LexicalFeatures
 from features.graph_builder import GraphBuilder
 
@@ -26,11 +37,11 @@ class ThreatEnsemble:
     THREAT_UNKNOWN = 'unknown'
     
     def __init__(self,
-                 dga_model: Optional[DGADetector] = None,
-                 gnn_model: Optional[TDGNN] = None,
+                 dga_model: Optional[Any] = None,
+                 gnn_model: Optional[Any] = None,
                  dga_weight: float = 0.4,
                  gnn_weight: float = 0.6,
-                 threshold: float = 0.7):
+                 threshold: float = 0.5):
         self.dga_model = dga_model
         self.gnn_model = gnn_model
         self.dga_weight = dga_weight
@@ -41,14 +52,17 @@ class ThreatEnsemble:
         
     def analyze_domain(self, domain: str) -> Dict:
         dga_result = None
-        if self.dga_model:
-            dga_results = self.dga_model.predict([domain])
-            dga_result = dga_results[0] if dga_results else None
+        dga_score = 0.0
+        
+        if self.dga_model and HAS_TORCH:
+            try:
+                dga_results = self.dga_model.predict([domain])
+                dga_result = dga_results[0] if dga_results else None
+                dga_score = dga_result['dga_prob'] if dga_result else 0.0
+            except:
+                pass
         
         lexical_features = self.lexical.extract(domain)
-        
-        dga_score = dga_result['dga_prob'] if dga_result else 0.0
-        
         heuristic_score = self._heuristic_score(lexical_features)
         
         if dga_result:
@@ -66,8 +80,8 @@ class ThreatEnsemble:
             'threat_type': self.THREAT_DGA if final_score > self.threshold else None,
         }
     
-    def analyze_graph(self, graphs: List[Data], node_mapping: Dict[str, int]) -> Dict:
-        if not self.gnn_model:
+    def analyze_graph(self, graphs: List, node_mapping: Dict[str, int]) -> Dict:
+        if not self.gnn_model or not HAS_TORCH:
             return {'error': 'GNN model not loaded'}
         
         graph_result = self.gnn_model.predict_graph(graphs)
@@ -85,7 +99,7 @@ class ThreatEnsemble:
             'threat_type': self.THREAT_C2 if graph_result['is_malicious'] else None,
         }
     
-    def analyze_traffic(self, queries: List, graphs: Optional[List[Data]] = None) -> List[ThreatDetection]:
+    def analyze_traffic(self, queries: List, graphs: Optional[List] = None) -> List[ThreatDetection]:
         detections = []
         
         domains = list(set(q.query_name for q in queries if q.query_name))
@@ -105,9 +119,10 @@ class ThreatEnsemble:
                 )
                 detections.append(detection)
         
-        if graphs and self.gnn_model:
-            node_mapping = {node: i for i, node in enumerate(graphs[-1].nodes()) 
-                          if hasattr(graphs[-1], 'nodes') else {}}
+        if graphs and self.gnn_model and HAS_TORCH:
+            node_mapping = {}
+            if hasattr(graphs[-1], 'nodes'):
+                node_mapping = {node: i for i, node in enumerate(graphs[-1].nodes())}
             
             graph_result = self.analyze_graph(graphs, node_mapping)
             
@@ -140,24 +155,24 @@ class ThreatEnsemble:
         score = 0.0
         
         entropy = features.get('entropy', 0)
-        if entropy > 3.5:
-            score += 0.3 * min(entropy / 4.5, 1.0)
+        if entropy > 3.0:
+            score += 0.35 * min(entropy / 4.0, 1.0)
         
         length = features.get('sld_length', 0)
-        if length > 15:
-            score += 0.2 * min((length - 15) / 20, 1.0)
+        if length > 12:
+            score += 0.25 * min((length - 12) / 15, 1.0)
         
         digit_ratio = features.get('digit_ratio', 0)
-        if digit_ratio > 0.3:
-            score += 0.2 * min(digit_ratio / 0.5, 1.0)
+        if digit_ratio > 0.2:
+            score += 0.2 * min(digit_ratio / 0.4, 1.0)
         
         consonant_seq = features.get('consonant_sequence', 0)
-        if consonant_seq > 4:
-            score += 0.15 * min((consonant_seq - 4) / 4, 1.0)
+        if consonant_seq > 3:
+            score += 0.1 * min((consonant_seq - 3) / 3, 1.0)
         
         hex_ratio = features.get('hex_ratio', 0)
-        if hex_ratio > 0.8:
-            score += 0.15
+        if hex_ratio > 0.6:
+            score += 0.1 * min(hex_ratio, 1.0)
         
         return min(score, 1.0)
     
@@ -183,7 +198,6 @@ class ThreatEnsemble:
             'total_threats': len(detections),
             'by_type': by_type,
             'high_confidence': high_confidence,
-            'avg_confidence': np.mean([d.confidence for d in detections]),
+            'avg_confidence': float(np.mean([d.confidence for d in detections])),
             'domains': [d.domain for d in detections[:20]],
         }
-

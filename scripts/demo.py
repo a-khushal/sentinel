@@ -62,7 +62,7 @@ def main():
     ensemble = ThreatEnsemble()
     blockchain = MockBlockchainClient()
     blockchain.register_node()
-    print("      Components initialized")
+    print("      Components initialized (heuristic mode, no ML models)")
     print()
     
     print("[2/5] Generating mock DNS traffic...")
@@ -125,4 +125,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

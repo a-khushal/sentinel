@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Any
 from collections import defaultdict
 from datetime import datetime, timedelta
 import networkx as nx
@@ -6,6 +6,14 @@ import numpy as np
 from dataclasses import dataclass
 from capture.sniffer import DNSQuery
 from .lexical import LexicalFeatures
+
+try:
+    import torch
+    from torch_geometric.data import Data
+    HAS_TORCH = True
+except ImportError:
+    HAS_TORCH = False
+    Data = Any
 
 @dataclass
 class GraphNode:
@@ -140,10 +148,10 @@ class GraphBuilder:
             'query_rate': query_rate,
         }
     
-    def to_pyg_data(self, G: nx.DiGraph):
-        import torch
-        from torch_geometric.data import Data
-        
+    def to_pyg_data(self, G: nx.DiGraph) -> Optional[Any]:
+        if not HAS_TORCH:
+            return None
+            
         node_mapping = {node: i for i, node in enumerate(G.nodes())}
         
         node_types = []
@@ -219,4 +227,3 @@ class GraphBuilder:
             frontier = new_frontier
         
         return G.subgraph(nodes).copy()
-
