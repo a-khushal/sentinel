@@ -4,17 +4,26 @@ from datetime import datetime
 import numpy as np
 
 try:
-    from torch_geometric.data import Data
+    import torch
     HAS_TORCH = True
 except ImportError:
     HAS_TORCH = False
+
+try:
+    from torch_geometric.data import Data
+    HAS_PYG = True
+except ImportError:
+    HAS_PYG = False
     Data = Any
 
 try:
-    from .dga_detector import DGADetector
+    from .dga_detector import FeatureBasedDGA
+except ImportError:
+    FeatureBasedDGA = None
+
+try:
     from .tdgnn import TDGNN
 except ImportError:
-    DGADetector = None
     TDGNN = None
 
 from features.lexical import LexicalFeatures
@@ -39,34 +48,38 @@ class ThreatEnsemble:
     def __init__(self,
                  dga_model: Optional[Any] = None,
                  gnn_model: Optional[Any] = None,
-                 dga_weight: float = 0.4,
-                 gnn_weight: float = 0.6,
-                 threshold: float = 0.5):
-        self.dga_model = dga_model
-        self.gnn_model = gnn_model
+                 dga_weight: float = 0.6,
+                 gnn_weight: float = 0.4,
+                 threshold: float = 0.5,
+                 auto_load: bool = True):
         self.dga_weight = dga_weight
         self.gnn_weight = gnn_weight
         self.threshold = threshold
         self.lexical = LexicalFeatures()
         self.graph_builder = GraphBuilder()
         
+        self.dga_model = dga_model
+        self.gnn_model = gnn_model
+        self.using_ml = False
+        
+        if auto_load and dga_model is None and HAS_TORCH and FeatureBasedDGA:
+            loaded = FeatureBasedDGA.load_trained()
+            if loaded:
+                self.dga_model = loaded
+                self.using_ml = True
+        
     def analyze_domain(self, domain: str) -> Dict:
-        dga_result = None
-        dga_score = 0.0
-        
-        if self.dga_model and HAS_TORCH:
-            try:
-                dga_results = self.dga_model.predict([domain])
-                dga_result = dga_results[0] if dga_results else None
-                dga_score = dga_result['dga_prob'] if dga_result else 0.0
-            except:
-                pass
-        
         lexical_features = self.lexical.extract(domain)
+        
+        ml_score = 0.0
+        if self.dga_model and HAS_TORCH:
+            feature_vec = self._features_to_vector(lexical_features)
+            ml_score = self.dga_model.predict_from_features(feature_vec)
+        
         heuristic_score = self._heuristic_score(lexical_features)
         
-        if dga_result:
-            final_score = 0.7 * dga_score + 0.3 * heuristic_score
+        if self.using_ml:
+            final_score = 0.7 * ml_score + 0.3 * heuristic_score
         else:
             final_score = heuristic_score
         
@@ -74,14 +87,31 @@ class ThreatEnsemble:
             'domain': domain,
             'is_suspicious': final_score > self.threshold,
             'confidence': final_score,
-            'dga_score': dga_score,
+            'dga_score': ml_score,
             'heuristic_score': heuristic_score,
             'features': lexical_features,
             'threat_type': self.THREAT_DGA if final_score > self.threshold else None,
+            'using_ml': self.using_ml,
         }
     
+    def _features_to_vector(self, features: Dict) -> List[float]:
+        return [
+            features.get('entropy', 0) / 5.0,
+            features.get('length', 0) / 50.0,
+            features.get('sld_length', 0) / 30.0,
+            features.get('digit_ratio', 0),
+            features.get('vowel_ratio', 0),
+            features.get('consonant_ratio', 0),
+            features.get('special_ratio', 0),
+            features.get('bigram_entropy', 0) / 5.0,
+            features.get('trigram_entropy', 0) / 5.0,
+            features.get('hex_ratio', 0),
+            features.get('consonant_sequence', 0) / 10.0,
+            features.get('numeric_sequence', 0) / 10.0,
+        ]
+    
     def analyze_graph(self, graphs: List, node_mapping: Dict[str, int]) -> Dict:
-        if not self.gnn_model or not HAS_TORCH:
+        if not self.gnn_model or not HAS_PYG:
             return {'error': 'GNN model not loaded'}
         
         graph_result = self.gnn_model.predict_graph(graphs)
@@ -119,7 +149,7 @@ class ThreatEnsemble:
                 )
                 detections.append(detection)
         
-        if graphs and self.gnn_model and HAS_TORCH:
+        if graphs and self.gnn_model and HAS_PYG:
             node_mapping = {}
             if hasattr(graphs[-1], 'nodes'):
                 node_mapping = {node: i for i, node in enumerate(graphs[-1].nodes())}

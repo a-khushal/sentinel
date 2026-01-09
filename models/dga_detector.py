@@ -1,8 +1,49 @@
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 import numpy as np
+
+WEIGHTS_PATH = os.path.join(os.path.dirname(__file__), 'weights', 'dga_classifier.pt')
+
+class FeatureBasedDGA(nn.Module):
+    def __init__(self, input_dim=12, hidden_dims=[64, 32]):
+        super().__init__()
+        
+        layers = []
+        prev_dim = input_dim
+        for dim in hidden_dims:
+            layers.extend([
+                nn.Linear(prev_dim, dim),
+                nn.BatchNorm1d(dim),
+                nn.ReLU(),
+                nn.Dropout(0.3)
+            ])
+            prev_dim = dim
+        
+        layers.append(nn.Linear(prev_dim, 1))
+        layers.append(nn.Sigmoid())
+        
+        self.model = nn.Sequential(*layers)
+    
+    def forward(self, x):
+        return self.model(x).squeeze(-1)
+    
+    @classmethod
+    def load_trained(cls, path: str = WEIGHTS_PATH) -> Optional['FeatureBasedDGA']:
+        if not os.path.exists(path):
+            return None
+        model = cls()
+        model.load_state_dict(torch.load(path, map_location='cpu', weights_only=True))
+        model.eval()
+        return model
+    
+    def predict_from_features(self, feature_vec: List[float]) -> float:
+        self.eval()
+        with torch.no_grad():
+            x = torch.tensor([feature_vec], dtype=torch.float32)
+            return float(self.model(x).item())
 
 class CharEmbedding(nn.Module):
     def __init__(self, vocab_size: int = 128, embed_dim: int = 64):

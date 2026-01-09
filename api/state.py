@@ -2,13 +2,18 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass, field
 import threading
 
-from models.dga_detector import DGADetector
-from models.tdgnn import TDGNN
 from models.ensemble import ThreatEnsemble
-from capture.sniffer import DNSSniffer
-from capture.preprocessor import DNSPreprocessor
 from features.graph_builder import GraphBuilder
 from blockchain.client import MockBlockchainClient
+
+try:
+    from capture.sniffer import DNSSniffer
+    from capture.preprocessor import DNSPreprocessor
+    HAS_CAPTURE = True
+except ImportError:
+    HAS_CAPTURE = False
+    DNSSniffer = None
+    DNSPreprocessor = None
 
 @dataclass
 class AppState:
@@ -24,34 +29,26 @@ class AppState:
     threat_queue: List[Dict] = field(default_factory=list)
     recent_threats: List[Dict] = field(default_factory=list)
     
-    sniffer: Optional[DNSSniffer] = None
-    preprocessor: Optional[DNSPreprocessor] = None
+    sniffer: Optional[object] = None
+    preprocessor: Optional[object] = None
     graph_builder: Optional[GraphBuilder] = None
     ensemble: Optional[ThreatEnsemble] = None
     blockchain: Optional[MockBlockchainClient] = None
     
-    dga_model: Optional[DGADetector] = None
-    gnn_model: Optional[TDGNN] = None
-    
     _lock: threading.Lock = field(default_factory=threading.Lock)
     
     def initialize(self):
-        self.preprocessor = DNSPreprocessor()
+        if HAS_CAPTURE:
+            self.preprocessor = DNSPreprocessor()
         self.graph_builder = GraphBuilder()
         
-        self.dga_model = DGADetector()
-        self.gnn_model = TDGNN()
-        
-        self.ensemble = ThreatEnsemble(
-            dga_model=self.dga_model,
-            gnn_model=self.gnn_model
-        )
+        self.ensemble = ThreatEnsemble(auto_load=True)
+        self.model_loaded = self.ensemble.using_ml
         
         self.blockchain = MockBlockchainClient()
         self.blockchain.register_node()
         self.blockchain_connected = True
         
-        self.model_loaded = True
         self.detection_active = True
     
     def cleanup(self):
@@ -73,4 +70,3 @@ class AppState:
     def increment_domains(self, count: int = 1):
         with self._lock:
             self.domains_analyzed += count
-

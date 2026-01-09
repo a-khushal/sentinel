@@ -62,7 +62,8 @@ def main():
     ensemble = ThreatEnsemble()
     blockchain = MockBlockchainClient()
     blockchain.register_node()
-    print("      Components initialized (heuristic mode, no ML models)")
+    mode = "ML mode (trained DGA model)" if ensemble.using_ml else "heuristic mode"
+    print(f"      Components initialized ({mode})")
     print()
     
     print("[2/5] Generating mock DNS traffic...")
@@ -121,7 +122,8 @@ def main():
     for domain in test_domains:
         result = ensemble.analyze_domain(domain)
         status = "SUSPICIOUS" if result['is_suspicious'] else "CLEAN"
-        print(f"  {domain:<35} [{status}] conf={result['confidence']:.2f}")
+        ml_info = f"ml={result['dga_score']:.2f}" if result.get('using_ml') else "heuristic"
+        print(f"  {domain:<35} [{status}] conf={result['confidence']:.2f} ({ml_info})")
 
 if __name__ == "__main__":
     main()
