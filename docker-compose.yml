@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  sentinel-api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - POLYGON_RPC_URL=${POLYGON_RPC_URL}
+      - PRIVATE_KEY=${PRIVATE_KEY}
+      - CONTRACT_ADDRESS=${CONTRACT_ADDRESS}
+    depends_on:
+      - redis
+    volumes:
+      - ./models/weights:/app/models/weights
+    network_mode: host
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  dashboard:
+    build: ./dashboard
+    ports:
+      - "3000:3000"
+    depends_on:
+      - sentinel-api
+
+volumes:
+  redis_data:
+
