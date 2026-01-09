@@ -1,10 +1,11 @@
 from typing import Dict, List, Optional
 from dataclasses import dataclass, field
 import threading
+import os
 
 from models.ensemble import ThreatEnsemble
 from features.graph_builder import GraphBuilder
-from blockchain.client import get_blockchain_client, MockBlockchainClient
+from blockchain.client import get_blockchain_client, MockBlockchainClient, ThreatType
 
 try:
     from capture.sniffer import DNSSniffer
@@ -58,13 +59,34 @@ class AppState:
         if self.sniffer:
             self.sniffer.stop()
     
-    def add_threat(self, threat: Dict):
+    def add_threat(self, threat: Dict, auto_report: bool = True):
         with self._lock:
             self.threat_queue.append(threat)
             self.recent_threats.insert(0, threat)
             if len(self.recent_threats) > 100:
                 self.recent_threats.pop()
             self.threats_detected += 1
+        
+        if auto_report and self.blockchain and self.blockchain_connected:
+            confidence = threat.get('confidence', 0)
+            if confidence >= 0.8:
+                try:
+                    threat_type_map = {
+                        'dga': ThreatType.DGA,
+                        'c2': ThreatType.C2,
+                        'tunnel': ThreatType.TUNNEL,
+                    }
+                    tx_hash = self.blockchain.report_threat(
+                        domain=threat['domain'],
+                        threat_type=threat_type_map.get(threat.get('threat_type', ''), ThreatType.UNKNOWN),
+                        confidence=int(confidence * 100),
+                        evidence=f"Auto-detected by SENTINEL ML at {threat.get('timestamp', '')}"
+                    )
+                    threat['reported_to_blockchain'] = True
+                    threat['tx_hash'] = tx_hash
+                    print(f"Auto-reported {threat['domain']} to blockchain: {tx_hash}")
+                except Exception as e:
+                    print(f"Auto-report failed for {threat['domain']}: {e}")
     
     def increment_queries(self, count: int = 1):
         with self._lock:

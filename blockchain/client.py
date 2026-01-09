@@ -199,7 +199,7 @@ class BlockchainClient:
         tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
         
         receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
-        return receipt['transactionHash'].hex()
+        return '0x' + receipt['transactionHash'].hex()
     
     def report_threat(self,
                       domain: str,
@@ -216,7 +216,7 @@ class BlockchainClient:
             evidence_hash
         ).build_transaction({
             'from': self.account.address,
-            'gas': 300000,
+            'gas': 500000,
             'gasPrice': self.w3.eth.gas_price,
             'nonce': self.w3.eth.get_transaction_count(self.account.address),
         })
@@ -225,7 +225,7 @@ class BlockchainClient:
         tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
         
         receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
-        return receipt['transactionHash'].hex()
+        return '0x' + receipt['transactionHash'].hex()
     
     def query_reputation(self, domain: str) -> DomainReputation:
         domain_hash = self.hash_domain(domain)

@@ -151,7 +151,19 @@ export default function ThreatMonitor() {
                   </td>
                   <td>
                     {threat.reported_to_blockchain ? (
-                      <span className="badge badge-green">Reported</span>
+                      threat.tx_hash ? (
+                        <a 
+                          href={`https://sepolia.etherscan.io/tx/${threat.tx_hash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="badge badge-green cursor-pointer"
+                          title={threat.tx_hash}
+                        >
+                          On-chain
+                        </a>
+                      ) : (
+                        <span className="badge badge-green">Reported</span>
+                      )
                     ) : (
                       <button 
                         onClick={() => reportToBlockchain(threat.id)} 
