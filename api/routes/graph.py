@@ -3,8 +3,17 @@ from pydantic import BaseModel
 from typing import List, Dict, Optional
 import networkx as nx
 import json
+import random
+from datetime import datetime, timedelta
 
 router = APIRouter()
+
+try:
+    import torch
+    from torch_geometric.data import Data
+    HAS_TORCH = True
+except ImportError:
+    HAS_TORCH = False
 
 class GraphNode(BaseModel):
     id: str
@@ -176,5 +185,149 @@ async def build_graph_from_queries():
         "message": "Graph built successfully",
         "nodes": G.number_of_nodes(),
         "edges": G.number_of_edges()
+    }
+
+@router.post("/analyze")
+async def analyze_graph_with_tdgnn(simulate_botnet: bool = True):
+    state = get_state()
+    
+    if not state.ensemble or not state.ensemble.using_gnn:
+        raise HTTPException(status_code=503, detail="T-DGNN model not loaded")
+    
+    if not HAS_TORCH:
+        raise HTTPException(status_code=503, detail="PyTorch not available")
+    
+    from scripts.dataset import load_dga_domains, load_benign_domains
+    
+    dga_domains = load_dga_domains()[:100]
+    benign_domains = load_benign_domains(limit=200)
+    
+    nodes = []
+    edges = []
+    node_features = []
+    node_labels = []
+    node_ids = []
+    
+    if simulate_botnet:
+        num_infected = random.randint(3, 6)
+        num_normal = random.randint(8, 15)
+        infected_clients = [f"192.168.1.{i}" for i in random.sample(range(10, 50), num_infected)]
+        normal_clients = [f"192.168.1.{i}" for i in random.sample(range(50, 100), num_normal)]
+        c2_domains = random.sample(dga_domains, random.randint(3, 8))
+    else:
+        infected_clients = []
+        normal_clients = [f"192.168.1.{i}" for i in random.sample(range(10, 50), 15)]
+        c2_domains = []
+    
+    all_clients = infected_clients + normal_clients
+    
+    client_to_domains = {}
+    for client in infected_clients:
+        domains = random.sample(c2_domains, min(len(c2_domains), random.randint(2, 5)))
+        domains += random.sample(benign_domains, random.randint(3, 8))
+        client_to_domains[client] = domains
+    
+    for client in normal_clients:
+        client_to_domains[client] = random.sample(benign_domains, random.randint(5, 15))
+    
+    all_domains = set()
+    for domains in client_to_domains.values():
+        all_domains.update(domains)
+    
+    for client in all_clients:
+        is_infected = client in infected_clients
+        node_ids.append(client)
+        node_features.append([
+            1, 0,
+            len(client_to_domains[client]) / 20,
+            len(set(client_to_domains[client])) / 15,
+            len(client_to_domains[client]) / 10,
+            0, 0, 0
+        ])
+        node_labels.append(1 if is_infected else 0)
+        nodes.append({
+            "id": client,
+            "type": "client",
+            "label": client,
+            "is_infected": is_infected,
+            "query_count": len(client_to_domains[client])
+        })
+    
+    for domain in all_domains:
+        is_c2 = domain in c2_domains
+        node_ids.append(domain)
+        node_features.append([
+            0, 1,
+            sum(1 for c in all_clients if domain in client_to_domains[c]) / 10,
+            sum(1 for c in all_clients if domain in client_to_domains[c]) / len(all_clients),
+            1 if is_c2 else 0,
+            len(domain) / 50,
+            sum(c.isdigit() for c in domain) / max(len(domain), 1),
+            0
+        ])
+        node_labels.append(1 if is_c2 else 0)
+        nodes.append({
+            "id": domain,
+            "type": "domain",
+            "label": domain[:30],
+            "is_c2": is_c2,
+            "client_count": sum(1 for c in all_clients if domain in client_to_domains[c])
+        })
+    
+    edge_index = []
+    for client in all_clients:
+        client_idx = node_ids.index(client)
+        for domain in client_to_domains[client]:
+            domain_idx = node_ids.index(domain)
+            edge_index.append([client_idx, domain_idx])
+            edges.append({
+                "source": client,
+                "target": domain,
+                "type": "queries"
+            })
+    
+    x = torch.tensor(node_features, dtype=torch.float)
+    edge_idx = torch.tensor(edge_index, dtype=torch.long).t().contiguous() if edge_index else torch.zeros((2, 0), dtype=torch.long)
+    batch = torch.zeros(len(node_ids), dtype=torch.long)
+    
+    data = Data(x=x, edge_index=edge_idx, batch=batch)
+    
+    model = state.ensemble.gnn_model
+    model.eval()
+    
+    with torch.no_grad():
+        node_out, graph_out, embeddings = model(data)
+        
+        node_probs = torch.softmax(node_out, dim=1)
+        graph_probs = torch.softmax(graph_out, dim=1)
+        
+        node_predictions = node_probs[:, 1].numpy()
+        is_botnet = bool(graph_probs[0, 1].item() > 0.5)
+        botnet_confidence = float(graph_probs[0, 1].item())
+    
+    for i, node in enumerate(nodes):
+        node["infection_score"] = float(node_predictions[i])
+        node["predicted_infected"] = bool(node_predictions[i] > 0.5)
+    
+    infected_nodes = [n for n in nodes if n.get("predicted_infected")]
+    
+    return {
+        "is_botnet": is_botnet,
+        "confidence": botnet_confidence,
+        "verdict": "BOTNET DETECTED" if is_botnet else "Normal Traffic",
+        "nodes": nodes,
+        "edges": edges,
+        "stats": {
+            "total_nodes": len(nodes),
+            "total_edges": len(edges),
+            "clients": len(all_clients),
+            "domains": len(all_domains),
+            "predicted_infected": len(infected_nodes),
+            "actual_infected": len(infected_clients) + len(c2_domains) if simulate_botnet else 0
+        },
+        "ground_truth": {
+            "infected_clients": infected_clients,
+            "c2_domains": c2_domains
+        } if simulate_botnet else None
     }
 
