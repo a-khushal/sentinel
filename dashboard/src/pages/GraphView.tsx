@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useContext } from 'react'
 import { useApi } from '../hooks/useApi'
-import { Network, ZoomIn, ZoomOut, Maximize2, RefreshCw } from 'lucide-react'
+import { ThemeContext } from '../App'
 import ForceGraph2D from 'react-force-graph-2d'
 
 interface GraphNode {
@@ -31,85 +31,78 @@ interface GraphData {
 }
 
 export default function GraphView() {
+  const { dark } = useContext(ThemeContext)
   const { data: graphData, refetch } = useApi<GraphData>('/graph', 5000)
   const graphRef = useRef<any>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
+  const [dimensions, setDimensions] = useState({ width: 800, height: 500 })
 
   useEffect(() => {
     const updateDimensions = () => {
       if (containerRef.current) {
         setDimensions({
-          width: containerRef.current.clientWidth,
-          height: containerRef.current.clientHeight - 80,
+          width: containerRef.current.clientWidth - 2,
+          height: 480,
         })
       }
     }
-    
     updateDimensions()
     window.addEventListener('resize', updateDimensions)
     return () => window.removeEventListener('resize', updateDimensions)
   }, [])
 
   const nodeColor = useCallback((node: GraphNode) => {
-    if (node.is_suspicious) return '#ef4444'
+    if (node.is_suspicious) return '#dc2626'
     switch (node.type) {
-      case 'client': return '#06b6d4'
-      case 'domain': return '#8b5cf6'
-      case 'ip': return '#10b981'
+      case 'client': return dark ? '#38bdf8' : '#2563eb'
+      case 'domain': return dark ? '#a78bfa' : '#7c3aed'
+      case 'ip': return dark ? '#4ade80' : '#16a34a'
       default: return '#6b7280'
     }
-  }, [])
-
-  const nodeSize = useCallback((node: GraphNode) => {
-    if (node.is_suspicious) return 8
-    return node.type === 'client' ? 6 : 4
-  }, [])
+  }, [dark])
 
   const graphDataFormatted = graphData ? {
-    nodes: graphData.nodes.map(n => ({ ...n, id: n.id })),
+    nodes: graphData.nodes.map(n => ({ ...n })),
     links: graphData.edges.map(e => ({
       source: e.source,
       target: e.target,
-      type: e.type,
       value: e.weight,
     })),
   } : { nodes: [], links: [] }
 
   return (
-    <div className="p-8 h-screen flex flex-col">
-      <header className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-white mb-2">DNS Traffic Graph</h1>
-          <p className="text-gray-400">Visual representation of DNS relationships</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => graphRef.current?.zoomToFit(400)}
-            className="p-2 bg-sentinel-card border border-sentinel-border rounded-lg hover:bg-white/5"
-          >
-            <Maximize2 className="w-5 h-5 text-gray-400" />
-          </button>
-          <button
-            onClick={() => refetch()}
-            className="p-2 bg-sentinel-card border border-sentinel-border rounded-lg hover:bg-white/5"
-          >
-            <RefreshCw className="w-5 h-5 text-gray-400" />
-          </button>
-        </div>
-      </header>
-
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <StatBox label="Total Nodes" value={graphData?.stats.total_nodes ?? 0} color="cyan" />
-        <StatBox label="Total Edges" value={graphData?.stats.total_edges ?? 0} color="purple" />
-        <StatBox label="Clients" value={graphData?.stats.client_nodes ?? 0} color="blue" />
-        <StatBox label="Suspicious" value={graphData?.stats.suspicious_nodes ?? 0} color="red" />
+    <div>
+      <div className="mb-6">
+        <h1 className="text-xl font-bold mb-1">DNS Traffic Graph</h1>
+        <p className={`text-sm ${dark ? 'text-gray-400' : 'text-gray-500'}`}>
+          Visual representation of DNS query relationships
+        </p>
       </div>
 
-      <div 
-        ref={containerRef}
-        className="flex-1 bg-sentinel-card border border-sentinel-border rounded-xl overflow-hidden relative"
-      >
+      <div className="grid grid-cols-5 gap-3 mb-4">
+        <StatBox label="Total Nodes" value={graphData?.stats.total_nodes ?? 0} dark={dark} />
+        <StatBox label="Total Edges" value={graphData?.stats.total_edges ?? 0} dark={dark} />
+        <StatBox label="Clients" value={graphData?.stats.client_nodes ?? 0} color="blue" dark={dark} />
+        <StatBox label="Domains" value={graphData?.stats.domain_nodes ?? 0} color="purple" dark={dark} />
+        <StatBox label="Suspicious" value={graphData?.stats.suspicious_nodes ?? 0} color="red" dark={dark} />
+      </div>
+
+      <div className="card" ref={containerRef}>
+        <div className={`px-4 py-3 border-b flex items-center justify-between ${dark ? 'border-gray-700' : 'border-gray-200'}`}>
+          <span className="font-semibold">Network Topology</span>
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-4 text-xs">
+              <Legend color={dark ? '#38bdf8' : '#2563eb'} label="Client" />
+              <Legend color={dark ? '#a78bfa' : '#7c3aed'} label="Domain" />
+              <Legend color={dark ? '#4ade80' : '#16a34a'} label="IP" />
+              <Legend color="#dc2626" label="Suspicious" />
+            </div>
+            <button onClick={() => refetch()} className="text-xs">
+              Refresh
+            </button>
+          </div>
+        </div>
+        
         {graphDataFormatted.nodes.length > 0 ? (
           <ForceGraph2D
             ref={graphRef}
@@ -117,81 +110,51 @@ export default function GraphView() {
             width={dimensions.width}
             height={dimensions.height}
             nodeColor={nodeColor as any}
-            nodeRelSize={nodeSize as any}
+            nodeRelSize={5}
             nodeLabel={(node: any) => `${node.label} (${node.type})`}
-            linkColor={() => 'rgba(75, 85, 99, 0.5)'}
-            linkWidth={(link: any) => Math.min(link.value, 3)}
-            backgroundColor="#111827"
-            nodeCanvasObject={(node: any, ctx, globalScale) => {
-              const size = nodeSize(node)
-              const color = nodeColor(node)
-              
-              ctx.beginPath()
-              ctx.arc(node.x, node.y, size, 0, 2 * Math.PI)
-              ctx.fillStyle = color
-              ctx.fill()
-              
-              if (node.is_suspicious) {
-                ctx.strokeStyle = '#ef4444'
-                ctx.lineWidth = 2
-                ctx.stroke()
-              }
-              
-              if (globalScale > 1.5) {
-                ctx.font = `${10/globalScale}px JetBrains Mono`
-                ctx.textAlign = 'center'
-                ctx.textBaseline = 'top'
-                ctx.fillStyle = '#9ca3af'
-                ctx.fillText(node.label.slice(0, 20), node.x, node.y + size + 2)
-              }
-            }}
+            linkColor={() => dark ? '#404040' : '#d0d0d0'}
+            linkWidth={1}
+            backgroundColor={dark ? '#1a1a1a' : '#ffffff'}
           />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center">
-              <Network className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-400">No graph data available</p>
-              <p className="text-gray-500 text-sm">Upload a PCAP or start DNS capture</p>
-            </div>
+          <div className={`h-[480px] flex flex-col items-center justify-center ${dark ? 'text-gray-500' : 'text-gray-400'}`}>
+            <div className="text-4xl mb-3">~</div>
+            <p>No graph data available</p>
+            <p className="text-sm mt-1">Upload a PCAP file or start DNS capture</p>
           </div>
         )}
-
-        <div className="absolute bottom-4 left-4 bg-sentinel-bg/90 backdrop-blur rounded-lg p-3 border border-sentinel-border">
-          <div className="text-xs text-gray-400 mb-2">Legend</div>
-          <div className="space-y-1">
-            <LegendItem color="#06b6d4" label="Client" />
-            <LegendItem color="#8b5cf6" label="Domain" />
-            <LegendItem color="#10b981" label="IP" />
-            <LegendItem color="#ef4444" label="Suspicious" />
-          </div>
-        </div>
       </div>
     </div>
   )
 }
 
-function StatBox({ label, value, color }: { label: string; value: number; color: string }) {
-  const colors: Record<string, string> = {
-    cyan: 'border-cyan-500/30 text-cyan-400',
-    purple: 'border-purple-500/30 text-purple-400',
-    blue: 'border-blue-500/30 text-blue-400',
-    red: 'border-red-500/30 text-red-400',
-  }
+function StatBox({ label, value, color, dark }: { 
+  label: string
+  value: number
+  color?: 'blue' | 'purple' | 'red'
+  dark: boolean 
+}) {
+  const valueColor = color === 'red' 
+    ? 'text-red-500' 
+    : color === 'blue' 
+    ? (dark ? 'text-sky-400' : 'text-blue-600')
+    : color === 'purple'
+    ? (dark ? 'text-violet-400' : 'text-violet-600')
+    : ''
 
   return (
-    <div className={`bg-sentinel-card border ${colors[color]} rounded-lg p-4`}>
-      <div className="text-2xl font-bold font-mono text-white">{value}</div>
-      <div className="text-sm text-gray-400">{label}</div>
+    <div className="card p-3 text-center">
+      <div className={`text-xl font-bold font-mono ${valueColor}`}>{value}</div>
+      <div className={`text-xs ${dark ? 'text-gray-400' : 'text-gray-500'}`}>{label}</div>
     </div>
   )
 }
 
-function LegendItem({ color, label }: { color: string; label: string }) {
+function Legend({ color, label }: { color: string; label: string }) {
   return (
-    <div className="flex items-center gap-2">
-      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
-      <span className="text-xs text-gray-300">{label}</span>
+    <div className="flex items-center gap-1.5">
+      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
+      <span>{label}</span>
     </div>
   )
 }
-

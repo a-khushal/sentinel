@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { useApi, postApi } from '../hooks/useApi'
-import { Database, Search, Shield, Clock, Hash, Users } from 'lucide-react'
+import { useState, useContext } from 'react'
+import { useApi } from '../hooks/useApi'
+import { ThemeContext } from '../App'
 
 interface BlockchainStatus {
   connected: boolean
@@ -19,6 +19,7 @@ interface Reputation {
 }
 
 export default function Blockchain() {
+  const { dark } = useContext(ThemeContext)
   const { data: status } = useApi<BlockchainStatus>('/blockchain/status', 5000)
   const [searchDomain, setSearchDomain] = useState('')
   const [reputation, setReputation] = useState<Reputation | null>(null)
@@ -39,176 +40,131 @@ export default function Blockchain() {
   }
 
   return (
-    <div className="p-8">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold text-white mb-2">Blockchain Explorer</h1>
-        <p className="text-gray-400">Decentralized threat intelligence ledger</p>
-      </header>
-
-      <div className="grid grid-cols-3 gap-6 mb-8">
-        <StatusCard
-          icon={Database}
-          label="Connection Status"
-          value={status?.connected ? 'Connected' : 'Disconnected'}
-          status={status?.connected ? 'success' : 'error'}
-        />
-        <StatusCard
-          icon={Shield}
-          label="Node Status"
-          value={status?.node_registered ? 'Registered' : 'Not Registered'}
-          status={status?.node_registered ? 'success' : 'warning'}
-        />
-        <StatusCard
-          icon={Hash}
-          label="Total Reports"
-          value={status?.total_reports?.toString() ?? '0'}
-          status="info"
-        />
+    <div>
+      <div className="mb-6">
+        <h1 className="text-xl font-bold mb-1">Blockchain Explorer</h1>
+        <p className={`text-sm ${dark ? 'text-gray-400' : 'text-gray-500'}`}>
+          Decentralized threat intelligence ledger
+        </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-6 mb-8">
-        <div className="bg-sentinel-card border border-sentinel-border rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <Search className="w-5 h-5 text-cyan-400" />
-            Query Domain Reputation
-          </h3>
-          <div className="flex gap-4 mb-4">
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="card p-4">
+          <div className={`text-xs mb-1 ${dark ? 'text-gray-400' : 'text-gray-500'}`}>Connection Status</div>
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${status?.connected ? 'bg-green-500' : 'bg-red-500'}`} />
+            <span className={`font-semibold ${status?.connected ? 'text-green-500' : 'text-red-500'}`}>
+              {status?.connected ? 'Connected' : 'Disconnected'}
+            </span>
+          </div>
+        </div>
+        <div className="card p-4">
+          <div className={`text-xs mb-1 ${dark ? 'text-gray-400' : 'text-gray-500'}`}>Node Status</div>
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${status?.node_registered ? 'bg-green-500' : (dark ? 'bg-gray-600' : 'bg-gray-300')}`} />
+            <span className={status?.node_registered ? 'text-green-500 font-semibold' : (dark ? 'text-gray-400' : 'text-gray-500')}>
+              {status?.node_registered ? 'Registered' : 'Not Registered'}
+            </span>
+          </div>
+        </div>
+        <div className="card p-4">
+          <div className={`text-xs mb-1 ${dark ? 'text-gray-400' : 'text-gray-500'}`}>Total Reports</div>
+          <div className={`text-xl font-bold font-mono ${dark ? 'text-cyan-400' : 'text-blue-600'}`}>
+            {status?.total_reports ?? 0}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="card p-4">
+          <h2 className="font-semibold mb-3">Query Domain Reputation</h2>
+          <div className="flex gap-3 mb-4">
             <input
               type="text"
               value={searchDomain}
               onChange={(e) => setSearchDomain(e.target.value)}
-              placeholder="Enter domain to check..."
-              className="flex-1 bg-sentinel-bg border border-sentinel-border rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500"
+              placeholder="Enter domain..."
+              className="flex-1"
               onKeyDown={(e) => e.key === 'Enter' && searchReputation()}
             />
-            <button
-              onClick={searchReputation}
-              disabled={searching}
-              className="px-6 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
-            >
-              {searching ? 'Searching...' : 'Search'}
+            <button onClick={searchReputation} disabled={searching} className="btn-primary">
+              {searching ? '...' : 'Search'}
             </button>
           </div>
 
           {reputation && (
-            <div className={`p-4 rounded-lg border ${
+            <div className={`p-4 rounded ${
               reputation.is_malicious 
-                ? 'bg-red-500/10 border-red-500/30' 
-                : 'bg-green-500/10 border-green-500/30'
+                ? (dark ? 'bg-red-900/20 border border-red-800' : 'bg-red-50 border border-red-200')
+                : (dark ? 'bg-green-900/20 border border-green-800' : 'bg-green-50 border border-green-200')
             }`}>
-              <div className="flex items-center justify-between mb-4">
-                <span className="font-mono text-white">{reputation.domain}</span>
-                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                  reputation.is_malicious ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'
-                }`}>
-                  {reputation.is_malicious ? 'MALICIOUS' : 'CLEAN'}
+              <div className="flex items-center justify-between mb-3">
+                <span className="font-mono font-medium">{reputation.domain}</span>
+                <span className={`badge ${reputation.is_malicious ? 'badge-red' : 'badge-green'}`}>
+                  {reputation.is_malicious ? 'Malicious' : 'Clean'}
                 </span>
               </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <ReputationStat icon={Hash} label="Total Reports" value={reputation.total_reports.toString()} />
-                <ReputationStat icon={Shield} label="Malicious Score" value={reputation.malicious_score.toString()} />
-                <ReputationStat icon={Users} label="Reporters" value={reputation.reporter_count.toString()} />
-                <ReputationStat 
-                  icon={Clock} 
-                  label="First Seen" 
-                  value={reputation.first_seen ? new Date(reputation.first_seen * 1000).toLocaleDateString() : 'Never'} 
-                />
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <div className={`text-xs ${dark ? 'text-gray-400' : 'text-gray-500'}`}>Reports</div>
+                  <div className="font-mono font-semibold">{reputation.total_reports}</div>
+                </div>
+                <div>
+                  <div className={`text-xs ${dark ? 'text-gray-400' : 'text-gray-500'}`}>Score</div>
+                  <div className="font-mono font-semibold">{reputation.malicious_score}</div>
+                </div>
+                <div>
+                  <div className={`text-xs ${dark ? 'text-gray-400' : 'text-gray-500'}`}>Reporters</div>
+                  <div className="font-mono font-semibold">{reputation.reporter_count}</div>
+                </div>
+                <div>
+                  <div className={`text-xs ${dark ? 'text-gray-400' : 'text-gray-500'}`}>First Seen</div>
+                  <div className="font-mono font-semibold">
+                    {reputation.first_seen ? new Date(reputation.first_seen * 1000).toLocaleDateString() : '-'}
+                  </div>
+                </div>
               </div>
             </div>
           )}
         </div>
 
-        <div className="bg-sentinel-card border border-sentinel-border rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-white mb-4">Network Info</h3>
-          <div className="space-y-4">
-            <InfoRow label="Network" value="Polygon Mumbai (Testnet)" />
-            <InfoRow label="Contract" value="0x..." truncate />
-            <InfoRow label="Min Stake" value="0.01 MATIC" />
-            <InfoRow label="Consensus" value="Stake-Weighted Voting" />
+        <div className="card p-4">
+          <h2 className="font-semibold mb-3">Network Information</h2>
+          <div className="space-y-2 text-sm">
+            <InfoRow label="Network" value="Polygon Mumbai (Testnet)" dark={dark} />
+            <InfoRow label="Contract" value="0x..." mono dark={dark} />
+            <InfoRow label="Min Stake" value="0.01 MATIC" dark={dark} />
+            <InfoRow label="Consensus" value="Stake-Weighted Voting" dark={dark} />
           </div>
-          
-          <div className="mt-6 pt-6 border-t border-sentinel-border">
-            <h4 className="text-sm font-medium text-gray-400 mb-3">Quick Actions</h4>
-            <div className="flex gap-3">
-              <button className="flex-1 py-2 px-4 bg-cyan-600/20 text-cyan-400 border border-cyan-500/30 rounded-lg hover:bg-cyan-600/30 transition-colors text-sm">
-                Register Node
-              </button>
-              <button className="flex-1 py-2 px-4 bg-purple-600/20 text-purple-400 border border-purple-500/30 rounded-lg hover:bg-purple-600/30 transition-colors text-sm">
-                View Proposals
-              </button>
+
+          <div className={`mt-4 pt-4 border-t ${dark ? 'border-gray-700' : 'border-gray-200'}`}>
+            <div className="flex gap-2">
+              <button className="flex-1">Register Node</button>
+              <button className="flex-1">View Proposals</button>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="bg-sentinel-card border border-sentinel-border rounded-xl overflow-hidden">
-        <div className="p-4 border-b border-sentinel-border">
-          <h3 className="text-lg font-semibold text-white">Recent Transactions</h3>
+      <div className="card">
+        <div className={`px-4 py-3 border-b ${dark ? 'border-gray-700' : 'border-gray-200'}`}>
+          <h2 className="font-semibold">Recent Transactions</h2>
         </div>
-        <div className="p-8 text-center text-gray-500">
-          <Database className="w-12 h-12 mx-auto mb-3 opacity-50" />
+        <div className={`p-8 text-center ${dark ? 'text-gray-500' : 'text-gray-400'}`}>
+          <div className="text-3xl mb-2">~</div>
           <p>No recent transactions</p>
-          <p className="text-sm">Transactions will appear here when threats are reported</p>
+          <p className="text-sm mt-1">Transactions will appear when threats are reported</p>
         </div>
       </div>
     </div>
   )
 }
 
-function StatusCard({ icon: Icon, label, value, status }: {
-  icon: React.ElementType
-  label: string
-  value: string
-  status: 'success' | 'warning' | 'error' | 'info'
-}) {
-  const statusColors = {
-    success: 'border-green-500/30 bg-green-500/10',
-    warning: 'border-yellow-500/30 bg-yellow-500/10',
-    error: 'border-red-500/30 bg-red-500/10',
-    info: 'border-cyan-500/30 bg-cyan-500/10',
-  }
-
-  const iconColors = {
-    success: 'text-green-400',
-    warning: 'text-yellow-400',
-    error: 'text-red-400',
-    info: 'text-cyan-400',
-  }
-
+function InfoRow({ label, value, mono, dark }: { label: string; value: string; mono?: boolean; dark: boolean }) {
   return (
-    <div className={`border rounded-xl p-6 ${statusColors[status]}`}>
-      <Icon className={`w-8 h-8 ${iconColors[status]} mb-3`} />
-      <div className="text-xl font-bold text-white mb-1">{value}</div>
-      <div className="text-sm text-gray-400">{label}</div>
+    <div className={`flex justify-between py-1.5 border-b ${dark ? 'border-gray-700' : 'border-gray-100'} last:border-0`}>
+      <span className={dark ? 'text-gray-400' : 'text-gray-500'}>{label}</span>
+      <span className={mono ? 'font-mono text-xs' : ''}>{value}</span>
     </div>
   )
 }
-
-function ReputationStat({ icon: Icon, label, value }: {
-  icon: React.ElementType
-  label: string
-  value: string
-}) {
-  return (
-    <div className="flex items-center gap-3">
-      <Icon className="w-4 h-4 text-gray-500" />
-      <div>
-        <div className="text-xs text-gray-400">{label}</div>
-        <div className="text-white font-mono">{value}</div>
-      </div>
-    </div>
-  )
-}
-
-function InfoRow({ label, value, truncate }: { label: string; value: string; truncate?: boolean }) {
-  return (
-    <div className="flex justify-between items-center py-2 border-b border-sentinel-border last:border-0">
-      <span className="text-gray-400">{label}</span>
-      <span className={`text-white font-mono text-sm ${truncate ? 'truncate max-w-[200px]' : ''}`}>
-        {value}
-      </span>
-    </div>
-  )
-}
-

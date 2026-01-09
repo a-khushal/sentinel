@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useContext } from 'react'
 import { useApi, postApi } from '../hooks/useApi'
-import { Shield, Search, Upload, AlertTriangle, ExternalLink } from 'lucide-react'
+import { ThemeContext } from '../App'
 
 interface Threat {
   id: string
@@ -15,6 +15,7 @@ interface Threat {
 }
 
 export default function ThreatMonitor() {
+  const { dark } = useContext(ThemeContext)
   const { data: threats, refetch } = useApi<Threat[]>('/threats?limit=100', 3000)
   const [searchDomain, setSearchDomain] = useState('')
   const [analyzing, setAnalyzing] = useState(false)
@@ -43,119 +44,94 @@ export default function ThreatMonitor() {
   }
 
   return (
-    <div className="p-8">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold text-white mb-2">Threat Monitor</h1>
-        <p className="text-gray-400">Real-time threat detection and analysis</p>
-      </header>
-
-      <div className="grid grid-cols-3 gap-6 mb-8">
-        <div className="col-span-2 bg-sentinel-card border border-sentinel-border rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <Search className="w-5 h-5 text-cyan-400" />
-            Analyze Domain
-          </h3>
-          <div className="flex gap-4">
-            <input
-              type="text"
-              value={searchDomain}
-              onChange={(e) => setSearchDomain(e.target.value)}
-              placeholder="Enter domain to analyze..."
-              className="flex-1 bg-sentinel-bg border border-sentinel-border rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500"
-              onKeyDown={(e) => e.key === 'Enter' && analyzeDomain()}
-            />
-            <button
-              onClick={analyzeDomain}
-              disabled={analyzing}
-              className="px-6 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
-            >
-              {analyzing ? 'Analyzing...' : 'Analyze'}
-            </button>
-          </div>
-
-          {analysisResult && (
-            <div className={`mt-4 p-4 rounded-lg border ${
-              analysisResult.is_suspicious 
-                ? 'bg-red-500/10 border-red-500/30' 
-                : 'bg-green-500/10 border-green-500/30'
-            }`}>
-              <div className="flex items-center justify-between mb-3">
-                <span className="font-mono text-white">{analysisResult.domain}</span>
-                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                  analysisResult.is_suspicious ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'
-                }`}>
-                  {analysisResult.is_suspicious ? 'SUSPICIOUS' : 'CLEAN'}
-                </span>
-              </div>
-              <div className="grid grid-cols-3 gap-4 text-sm">
-                <div>
-                  <span className="text-gray-400">Confidence</span>
-                  <p className="text-white font-mono">{(analysisResult.confidence * 100).toFixed(1)}%</p>
-                </div>
-                <div>
-                  <span className="text-gray-400">DGA Score</span>
-                  <p className="text-white font-mono">{(analysisResult.dga_score * 100).toFixed(1)}%</p>
-                </div>
-                <div>
-                  <span className="text-gray-400">Heuristic</span>
-                  <p className="text-white font-mono">{(analysisResult.heuristic_score * 100).toFixed(1)}%</p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="bg-sentinel-card border border-sentinel-border rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <Upload className="w-5 h-5 text-cyan-400" />
-            Upload PCAP
-          </h3>
-          <div className="border-2 border-dashed border-sentinel-border rounded-lg p-8 text-center hover:border-cyan-500/50 transition-colors cursor-pointer">
-            <Upload className="w-12 h-12 text-gray-500 mx-auto mb-3" />
-            <p className="text-gray-400 text-sm">Drop PCAP file here or click to upload</p>
-          </div>
-        </div>
+    <div>
+      <div className="mb-6">
+        <h1 className="text-xl font-bold mb-1">Threat Monitor</h1>
+        <p className={`text-sm ${dark ? 'text-gray-400' : 'text-gray-500'}`}>
+          Real-time threat detection and domain analysis
+        </p>
       </div>
 
-      <div className="bg-sentinel-card border border-sentinel-border rounded-xl overflow-hidden">
-        <div className="p-4 border-b border-sentinel-border flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-red-400" />
-            Detected Threats
-          </h3>
-          <span className="text-sm text-gray-400">{threats?.length ?? 0} threats</span>
+      <div className="card p-4 mb-6">
+        <h2 className="font-semibold mb-3">Analyze Domain</h2>
+        <div className="flex gap-3 mb-4">
+          <input
+            type="text"
+            value={searchDomain}
+            onChange={(e) => setSearchDomain(e.target.value)}
+            placeholder="Enter domain to analyze (e.g., suspicious-domain.com)"
+            className="flex-1"
+            onKeyDown={(e) => e.key === 'Enter' && analyzeDomain()}
+          />
+          <button onClick={analyzeDomain} disabled={analyzing} className="btn-primary">
+            {analyzing ? 'Analyzing...' : 'Analyze'}
+          </button>
         </div>
-        
+
+        {analysisResult && (
+          <div className={`p-4 rounded ${
+            analysisResult.is_suspicious 
+              ? (dark ? 'bg-red-900/20 border border-red-800' : 'bg-red-50 border border-red-200')
+              : (dark ? 'bg-green-900/20 border border-green-800' : 'bg-green-50 border border-green-200')
+          }`}>
+            <div className="flex items-center justify-between mb-3">
+              <span className="font-mono font-medium">{analysisResult.domain}</span>
+              <span className={`badge ${analysisResult.is_suspicious ? 'badge-red' : 'badge-green'}`}>
+                {analysisResult.is_suspicious ? 'Suspicious' : 'Clean'}
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-4 text-sm">
+              <div>
+                <div className={`text-xs ${dark ? 'text-gray-400' : 'text-gray-500'}`}>Confidence</div>
+                <div className="font-mono font-semibold">{(analysisResult.confidence * 100).toFixed(1)}%</div>
+              </div>
+              <div>
+                <div className={`text-xs ${dark ? 'text-gray-400' : 'text-gray-500'}`}>DGA Score</div>
+                <div className="font-mono font-semibold">{(analysisResult.dga_score * 100).toFixed(1)}%</div>
+              </div>
+              <div>
+                <div className={`text-xs ${dark ? 'text-gray-400' : 'text-gray-500'}`}>Heuristic Score</div>
+                <div className="font-mono font-semibold">{(analysisResult.heuristic_score * 100).toFixed(1)}%</div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="card">
+        <div className={`px-4 py-3 border-b flex items-center justify-between ${dark ? 'border-gray-700' : 'border-gray-200'}`}>
+          <h2 className="font-semibold">Detected Threats</h2>
+          <span className={`text-sm ${dark ? 'text-gray-400' : 'text-gray-500'}`}>
+            {threats?.length ?? 0} total
+          </span>
+        </div>
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table>
             <thead>
-              <tr className="bg-sentinel-bg/50">
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Domain</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Type</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Confidence</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">DGA Score</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Time</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Actions</th>
+              <tr>
+                <th>Domain</th>
+                <th style={{ width: '80px' }}>Type</th>
+                <th style={{ width: '120px' }}>Confidence</th>
+                <th style={{ width: '80px' }}>DGA</th>
+                <th style={{ width: '100px' }}>Time</th>
+                <th style={{ width: '100px' }}>Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-sentinel-border">
+            <tbody>
               {(threats ?? []).map((threat) => (
-                <tr key={threat.id} className="hover:bg-white/5">
-                  <td className="px-4 py-3">
-                    <span className="font-mono text-white">{threat.domain}</span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-1 rounded text-xs font-medium uppercase ${
-                      threat.threat_type === 'dga' ? 'bg-red-500/20 text-red-400' :
-                      threat.threat_type === 'c2' ? 'bg-orange-500/20 text-orange-400' :
-                      'bg-yellow-500/20 text-yellow-400'
+                <tr key={threat.id}>
+                  <td className="font-mono text-xs">{threat.domain}</td>
+                  <td>
+                    <span className={`badge ${
+                      threat.threat_type === 'dga' ? 'badge-red' :
+                      threat.threat_type === 'c2' ? 'badge-red' : 'badge-gray'
                     }`}>
                       {threat.threat_type}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
+                  <td>
                     <div className="flex items-center gap-2">
-                      <div className="w-16 h-2 bg-gray-800 rounded-full overflow-hidden">
+                      <div className={`w-16 h-1.5 rounded-full ${dark ? 'bg-gray-700' : 'bg-gray-200'}`}>
                         <div 
                           className={`h-full rounded-full ${
                             threat.confidence > 0.9 ? 'bg-red-500' :
@@ -164,28 +140,24 @@ export default function ThreatMonitor() {
                           style={{ width: `${threat.confidence * 100}%` }}
                         />
                       </div>
-                      <span className="text-sm text-gray-400 font-mono">
+                      <span className="font-mono text-xs">
                         {(threat.confidence * 100).toFixed(0)}%
                       </span>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-gray-300 font-mono text-sm">
-                    {(threat.dga_score * 100).toFixed(0)}%
-                  </td>
-                  <td className="px-4 py-3 text-gray-400 text-sm">
+                  <td className="font-mono text-xs">{(threat.dga_score * 100).toFixed(0)}%</td>
+                  <td className={`text-xs ${dark ? 'text-gray-400' : 'text-gray-500'}`}>
                     {new Date(threat.timestamp).toLocaleTimeString()}
                   </td>
-                  <td className="px-4 py-3">
+                  <td>
                     {threat.reported_to_blockchain ? (
-                      <span className="text-green-400 text-sm flex items-center gap-1">
-                        <Shield className="w-4 h-4" /> Reported
-                      </span>
+                      <span className="badge badge-green">Reported</span>
                     ) : (
-                      <button
-                        onClick={() => reportToBlockchain(threat.id)}
-                        className="text-cyan-400 hover:text-cyan-300 text-sm flex items-center gap-1"
+                      <button 
+                        onClick={() => reportToBlockchain(threat.id)} 
+                        className="text-xs"
                       >
-                        <ExternalLink className="w-4 h-4" /> Report
+                        Report
                       </button>
                     )}
                   </td>
@@ -193,8 +165,8 @@ export default function ThreatMonitor() {
               ))}
               {(!threats || threats.length === 0) && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
-                    No threats detected yet
+                  <td colSpan={6} className={`text-center py-8 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>
+                    No threats detected yet. Start DNS capture or upload a PCAP file.
                   </td>
                 </tr>
               )}
@@ -205,4 +177,3 @@ export default function ThreatMonitor() {
     </div>
   )
 }
-

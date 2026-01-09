@@ -1,3 +1,4 @@
+import React, { useState, useEffect, createContext } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
@@ -5,20 +6,38 @@ import ThreatMonitor from './pages/ThreatMonitor'
 import GraphView from './pages/GraphView'
 import Blockchain from './pages/Blockchain'
 
+export const ThemeContext = createContext<{
+  dark: boolean
+  toggle: () => void
+}>({ dark: false, toggle: () => {} })
+
 function App() {
+  const [dark, setDark] = useState(() => {
+    const saved = localStorage.getItem('theme')
+    return saved === 'dark'
+  })
+
+  useEffect(() => {
+    document.body.className = dark ? 'dark' : 'light'
+    localStorage.setItem('theme', dark ? 'dark' : 'light')
+  }, [dark])
+
+  const toggle = () => setDark(!dark)
+
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Dashboard />} />
-          <Route path="threats" element={<ThreatMonitor />} />
-          <Route path="graph" element={<GraphView />} />
-          <Route path="blockchain" element={<Blockchain />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <ThemeContext.Provider value={{ dark, toggle }}>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Dashboard />} />
+            <Route path="threats" element={<ThreatMonitor />} />
+            <Route path="graph" element={<GraphView />} />
+            <Route path="blockchain" element={<Blockchain />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </ThemeContext.Provider>
   )
 }
 
 export default App
-

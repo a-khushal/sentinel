@@ -1,6 +1,6 @@
+import { useContext } from 'react'
 import { useApi } from '../hooks/useApi'
-import { Shield, Activity, Database, AlertTriangle, TrendingUp, Zap } from 'lucide-react'
-import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, AreaChart, Area } from 'recharts'
+import { ThemeContext } from '../App'
 
 interface Stats {
   total_queries_processed: number
@@ -17,208 +17,177 @@ interface ThreatSummary {
   reported_to_blockchain: number
 }
 
-const mockChartData = Array.from({ length: 24 }, (_, i) => ({
-  hour: i,
-  queries: Math.floor(Math.random() * 1000) + 500,
-  threats: Math.floor(Math.random() * 20),
-}))
-
 export default function Dashboard() {
+  const { dark } = useContext(ThemeContext)
   const { data: stats } = useApi<Stats>('/stats', 2000)
   const { data: threatSummary } = useApi<ThreatSummary>('/threats/stats/summary', 5000)
 
   return (
-    <div className="p-8">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold text-white mb-2">System Overview</h1>
-        <p className="text-gray-400">Real-time botnet detection and DNS threat analysis</p>
-      </header>
+    <div>
+      <div className="mb-6">
+        <h1 className="text-xl font-bold mb-1">System Overview</h1>
+        <p className={`text-sm ${dark ? 'text-gray-400' : 'text-gray-500'}`}>
+          Real-time botnet detection and DNS threat analysis
+        </p>
+      </div>
 
-      <div className="grid grid-cols-4 gap-6 mb-8">
-        <StatCard
-          icon={Activity}
-          label="Queries Processed"
-          value={stats?.total_queries_processed ?? 0}
-          trend="+12%"
-          color="cyan"
+      <div className="grid grid-cols-4 gap-4 mb-6">
+        <StatCard 
+          label="Queries Processed" 
+          value={stats?.total_queries_processed ?? 0} 
+          dark={dark} 
         />
-        <StatCard
-          icon={AlertTriangle}
-          label="Threats Detected"
-          value={stats?.threats_detected ?? 0}
-          trend={threatSummary?.high_confidence ? `${threatSummary.high_confidence} critical` : ''}
-          color="red"
+        <StatCard 
+          label="Threats Detected" 
+          value={stats?.threats_detected ?? 0} 
+          variant="danger"
+          dark={dark} 
         />
-        <StatCard
-          icon={Shield}
-          label="Domains Analyzed"
-          value={stats?.domains_analyzed ?? 0}
-          trend=""
-          color="green"
+        <StatCard 
+          label="Domains Analyzed" 
+          value={stats?.domains_analyzed ?? 0} 
+          dark={dark} 
         />
-        <StatCard
-          icon={Database}
-          label="Blockchain Reports"
-          value={threatSummary?.reported_to_blockchain ?? 0}
-          trend=""
-          color="purple"
+        <StatCard 
+          label="Blockchain Reports" 
+          value={threatSummary?.reported_to_blockchain ?? 0} 
+          variant="info"
+          dark={dark} 
         />
       </div>
 
-      <div className="grid grid-cols-3 gap-6 mb-8">
-        <div className="col-span-2 bg-sentinel-card border border-sentinel-border rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-cyan-400" />
-            Query Volume (24h)
-          </h3>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={mockChartData}>
-                <defs>
-                  <linearGradient id="queryGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="hour" stroke="#4b5563" fontSize={12} />
-                <YAxis stroke="#4b5563" fontSize={12} />
-                <Area
-                  type="monotone"
-                  dataKey="queries"
-                  stroke="#06b6d4"
-                  fill="url(#queryGradient)"
-                  strokeWidth={2}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+      <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="card p-4">
+          <h2 className="font-semibold mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
+            System Status
+          </h2>
+          <div className="space-y-3">
+            <StatusRow label="DNS Capture" active={stats?.capture_running ?? false} dark={dark} />
+            <StatusRow label="ML Detection" active={stats?.model_loaded ?? false} dark={dark} />
+            <StatusRow label="Graph Analysis" active={true} dark={dark} />
+            <StatusRow label="Blockchain Connection" active={true} dark={dark} />
           </div>
         </div>
 
-        <div className="bg-sentinel-card border border-sentinel-border rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <Zap className="w-5 h-5 text-yellow-400" />
+        <div className="card p-4">
+          <h2 className="font-semibold mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
             Threat Distribution
-          </h3>
-          <div className="space-y-4">
-            {Object.entries(threatSummary?.by_type ?? { dga: 45, c2: 12, tunnel: 3 }).map(([type, count]) => (
-              <div key={type}>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-gray-400 uppercase">{type}</span>
-                  <span className="text-white font-mono">{count}</span>
+          </h2>
+          <div className="space-y-3">
+            {Object.entries(threatSummary?.by_type ?? { dga: 0, c2: 0, tunnel: 0 }).map(([type, count]) => {
+              const total = Math.max(threatSummary?.total_threats || 1, 1)
+              const pct = ((count as number) / total * 100)
+              return (
+                <div key={type}>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="uppercase font-medium">{type}</span>
+                    <span className={`font-mono ${dark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {count} ({pct.toFixed(0)}%)
+                    </span>
+                  </div>
+                  <div className={`h-1.5 rounded-full ${dark ? 'bg-gray-800' : 'bg-gray-200'}`}>
+                    <div 
+                      className={`h-full rounded-full transition-all ${
+                        type === 'dga' ? 'bg-red-500' : 
+                        type === 'c2' ? 'bg-orange-500' : 'bg-yellow-500'
+                      }`}
+                      style={{ width: `${Math.min(pct, 100)}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${
-                      type === 'dga' ? 'bg-red-500' :
-                      type === 'c2' ? 'bg-orange-500' : 'bg-yellow-500'
-                    }`}
-                    style={{ width: `${Math.min((count as number / 60) * 100, 100)}%` }}
-                  />
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
-          
-          <div className="mt-6 pt-6 border-t border-sentinel-border">
-            <div className="flex items-center justify-between">
-              <span className="text-gray-400">High Confidence</span>
-              <span className="text-red-400 font-bold">{threatSummary?.high_confidence ?? 0}</span>
+          <div className={`mt-4 pt-3 border-t ${dark ? 'border-gray-700' : 'border-gray-200'}`}>
+            <div className="flex justify-between text-sm">
+              <span className={dark ? 'text-gray-400' : 'text-gray-500'}>High Confidence Threats</span>
+              <span className="font-mono font-semibold text-red-500">{threatSummary?.high_confidence ?? 0}</span>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
-        <SystemStatus stats={stats} />
-        <RecentActivity />
+      <div className="card">
+        <div className={`px-4 py-3 border-b ${dark ? 'border-gray-700' : 'border-gray-200'}`}>
+          <h2 className="font-semibold">Recent Activity</h2>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: '100px' }}>Time</th>
+              <th>Event</th>
+              <th>Details</th>
+              <th style={{ width: '100px' }}>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td className="font-mono text-xs">2s ago</td>
+              <td>DGA domain detected</td>
+              <td className="font-mono text-xs">xk7h2m9p.evil.com</td>
+              <td><span className="badge badge-red">Critical</span></td>
+            </tr>
+            <tr>
+              <td className="font-mono text-xs">15s ago</td>
+              <td>Threat reported to blockchain</td>
+              <td className="font-mono text-xs">malware.bad</td>
+              <td><span className="badge badge-green">Success</span></td>
+            </tr>
+            <tr>
+              <td className="font-mono text-xs">1m ago</td>
+              <td>New client connected</td>
+              <td className="font-mono text-xs">192.168.1.105</td>
+              <td><span className="badge badge-blue">Info</span></td>
+            </tr>
+            <tr>
+              <td className="font-mono text-xs">3m ago</td>
+              <td>C2 beacon pattern detected</td>
+              <td className="font-mono text-xs">c2server.net</td>
+              <td><span className="badge badge-red">Critical</span></td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   )
 }
 
-function StatCard({ icon: Icon, label, value, trend, color }: {
-  icon: React.ElementType
+function StatCard({ label, value, variant, dark }: { 
   label: string
   value: number
-  trend: string
-  color: 'cyan' | 'red' | 'green' | 'purple'
+  variant?: 'danger' | 'success' | 'info'
+  dark: boolean 
 }) {
-  const colors = {
-    cyan: 'from-cyan-500/20 to-cyan-500/5 border-cyan-500/30 text-cyan-400',
-    red: 'from-red-500/20 to-red-500/5 border-red-500/30 text-red-400',
-    green: 'from-green-500/20 to-green-500/5 border-green-500/30 text-green-400',
-    purple: 'from-purple-500/20 to-purple-500/5 border-purple-500/30 text-purple-400',
-  }
+  const valueColor = variant === 'danger' 
+    ? 'text-red-500' 
+    : variant === 'success' 
+    ? 'text-green-500'
+    : variant === 'info'
+    ? (dark ? 'text-cyan-400' : 'text-blue-600')
+    : ''
 
   return (
-    <div className={`bg-gradient-to-br ${colors[color]} border rounded-xl p-6`}>
-      <div className="flex items-center justify-between mb-4">
-        <Icon className="w-8 h-8" />
-        {trend && <span className="text-xs font-mono opacity-70">{trend}</span>}
-      </div>
-      <div className="text-3xl font-bold text-white mb-1 font-mono">
+    <div className="card p-4">
+      <div className={`text-2xl font-bold font-mono stat-value ${valueColor}`}>
         {value.toLocaleString()}
       </div>
-      <div className="text-sm text-gray-400">{label}</div>
-    </div>
-  )
-}
-
-function SystemStatus({ stats }: { stats: Stats | null }) {
-  const systems = [
-    { name: 'DNS Capture', active: stats?.capture_running ?? false },
-    { name: 'ML Detection', active: stats?.model_loaded ?? false },
-    { name: 'Graph Analysis', active: true },
-    { name: 'Blockchain', active: true },
-  ]
-
-  return (
-    <div className="bg-sentinel-card border border-sentinel-border rounded-xl p-6">
-      <h3 className="text-lg font-semibold text-white mb-4">System Status</h3>
-      <div className="space-y-3">
-        {systems.map(({ name, active }) => (
-          <div key={name} className="flex items-center justify-between py-2 border-b border-sentinel-border last:border-0">
-            <span className="text-gray-300">{name}</span>
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${active ? 'bg-green-500' : 'bg-gray-600'}`} />
-              <span className={`text-sm ${active ? 'text-green-400' : 'text-gray-500'}`}>
-                {active ? 'Active' : 'Inactive'}
-              </span>
-            </div>
-          </div>
-        ))}
+      <div className={`text-xs mt-1 ${dark ? 'text-gray-400' : 'text-gray-500'}`}>
+        {label}
       </div>
     </div>
   )
 }
 
-function RecentActivity() {
-  const activities = [
-    { time: '2s ago', event: 'DGA domain detected', domain: 'xk7h2m9p.evil.com', severity: 'high' },
-    { time: '15s ago', event: 'Threat reported to blockchain', domain: 'malware.bad', severity: 'medium' },
-    { time: '1m ago', event: 'New client connected', domain: '192.168.1.105', severity: 'low' },
-    { time: '3m ago', event: 'C2 beacon pattern detected', domain: 'c2server.net', severity: 'high' },
-  ]
-
+function StatusRow({ label, active, dark }: { label: string; active: boolean; dark: boolean }) {
   return (
-    <div className="bg-sentinel-card border border-sentinel-border rounded-xl p-6">
-      <h3 className="text-lg font-semibold text-white mb-4">Recent Activity</h3>
-      <div className="space-y-3">
-        {activities.map((activity, i) => (
-          <div key={i} className="flex items-start gap-3 py-2 border-b border-sentinel-border last:border-0">
-            <div className={`w-2 h-2 rounded-full mt-2 ${
-              activity.severity === 'high' ? 'bg-red-500' :
-              activity.severity === 'medium' ? 'bg-yellow-500' : 'bg-blue-500'
-            }`} />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm text-gray-300">{activity.event}</p>
-              <p className="text-xs text-gray-500 font-mono truncate">{activity.domain}</p>
-            </div>
-            <span className="text-xs text-gray-500">{activity.time}</span>
-          </div>
-        ))}
+    <div className="flex items-center justify-between">
+      <span className={`text-sm ${dark ? 'text-gray-300' : 'text-gray-600'}`}>{label}</span>
+      <div className="flex items-center gap-2">
+        <div className={`w-2 h-2 rounded-full ${active ? 'bg-green-500' : (dark ? 'bg-gray-600' : 'bg-gray-300')}`} />
+        <span className={`text-sm ${active ? 'text-green-500' : (dark ? 'text-gray-500' : 'text-gray-400')}`}>
+          {active ? 'Active' : 'Inactive'}
+        </span>
       </div>
     </div>
   )
 }
-

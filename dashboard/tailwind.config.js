@@ -4,35 +4,28 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
-        sentinel: {
-          bg: '#0a0e17',
-          card: '#111827',
-          border: '#1f2937',
-          accent: '#06b6d4',
-          danger: '#ef4444',
-          warning: '#f59e0b',
-          success: '#10b981',
+        cf: {
+          blue: '#1a5cff',
+          red: '#cc0000',
+          green: '#008000',
+          gray: '#808080',
+          lightgray: '#e1e1e1',
+          darkgray: '#cccccc',
+          bg: '#ffffff',
+          'bg-dark': '#1e1e1e',
+          'card-dark': '#2d2d2d',
+          'border-dark': '#404040',
         }
       },
       fontFamily: {
-        mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
-        sans: ['Outfit', 'system-ui', 'sans-serif'],
+        sans: ['Verdana', 'Arial', 'sans-serif'],
+        mono: ['Consolas', 'Monaco', 'monospace'],
       },
-      animation: {
-        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'glow': 'glow 2s ease-in-out infinite alternate',
-      },
-      keyframes: {
-        glow: {
-          '0%': { boxShadow: '0 0 5px #06b6d4, 0 0 10px #06b6d4' },
-          '100%': { boxShadow: '0 0 10px #06b6d4, 0 0 20px #06b6d4, 0 0 30px #06b6d4' },
-        }
-      }
     },
   },
   plugins: [],
 }
-
