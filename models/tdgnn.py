@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -5,6 +6,53 @@ from torch_geometric.nn import SAGEConv, GATConv, global_mean_pool
 from torch_geometric.data import Data, Batch
 from typing import List, Dict, Optional, Tuple
 import numpy as np
+
+TDGNN_WEIGHTS_PATH = os.path.join(os.path.dirname(__file__), 'weights', 'tdgnn.pt')
+
+class TrainedTDGNN(nn.Module):
+    def __init__(self, node_features=8, hidden_dim=64, num_classes=2):
+        super().__init__()
+        
+        self.conv1 = SAGEConv(node_features, hidden_dim)
+        self.conv2 = SAGEConv(hidden_dim, hidden_dim)
+        
+        self.gru = nn.GRU(hidden_dim, hidden_dim, batch_first=True)
+        
+        self.node_classifier = nn.Sequential(
+            nn.Linear(hidden_dim, 32),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(32, 2)
+        )
+        
+        self.graph_classifier = nn.Sequential(
+            nn.Linear(hidden_dim, 32),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(32, num_classes)
+        )
+        
+    def forward(self, data):
+        x, edge_index, batch = data.x, data.edge_index, data.batch
+        
+        x = F.relu(self.conv1(x, edge_index))
+        x = F.dropout(x, p=0.3, training=self.training)
+        x = F.relu(self.conv2(x, edge_index))
+        
+        node_out = self.node_classifier(x)
+        graph_emb = global_mean_pool(x, batch)
+        graph_out = self.graph_classifier(graph_emb)
+        
+        return node_out, graph_out, x
+    
+    @classmethod
+    def load_trained(cls, path: str = TDGNN_WEIGHTS_PATH) -> Optional['TrainedTDGNN']:
+        if not os.path.exists(path):
+            return None
+        model = cls()
+        model.load_state_dict(torch.load(path, map_location='cpu', weights_only=True))
+        model.eval()
+        return model
 
 class GraphEncoder(nn.Module):
     def __init__(self, 

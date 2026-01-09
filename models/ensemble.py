@@ -22,9 +22,9 @@ except ImportError:
     FeatureBasedDGA = None
 
 try:
-    from .tdgnn import TDGNN
+    from .tdgnn import TrainedTDGNN
 except ImportError:
-    TDGNN = None
+    TrainedTDGNN = None
 
 from features.lexical import LexicalFeatures
 from features.graph_builder import GraphBuilder
@@ -61,12 +61,19 @@ class ThreatEnsemble:
         self.dga_model = dga_model
         self.gnn_model = gnn_model
         self.using_ml = False
+        self.using_gnn = False
         
         if auto_load and dga_model is None and HAS_TORCH and FeatureBasedDGA:
             loaded = FeatureBasedDGA.load_trained()
             if loaded:
                 self.dga_model = loaded
                 self.using_ml = True
+        
+        if auto_load and gnn_model is None and HAS_PYG and TrainedTDGNN:
+            loaded_gnn = TrainedTDGNN.load_trained()
+            if loaded_gnn:
+                self.gnn_model = loaded_gnn
+                self.using_gnn = True
         
     def analyze_domain(self, domain: str) -> Dict:
         lexical_features = self.lexical.extract(domain)

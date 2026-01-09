@@ -62,7 +62,13 @@ def main():
     ensemble = ThreatEnsemble()
     blockchain = MockBlockchainClient()
     blockchain.register_node()
-    mode = "ML mode (trained DGA model)" if ensemble.using_ml else "heuristic mode"
+    
+    modes = []
+    if ensemble.using_ml:
+        modes.append("DGA-ML")
+    if ensemble.using_gnn:
+        modes.append("T-DGNN")
+    mode = " + ".join(modes) if modes else "heuristic only"
     print(f"      Components initialized ({mode})")
     print()
     
