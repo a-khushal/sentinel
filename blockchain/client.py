@@ -3,8 +3,12 @@ from eth_account import Account
 from typing import Dict, List, Optional, Tuple
 import json
 import hashlib
+import os
 from dataclasses import dataclass
 from enum import IntEnum
+
+BLOCKCHAIN_DIR = os.path.dirname(os.path.abspath(__file__))
+DEPLOYMENT_FILE = os.path.join(BLOCKCHAIN_DIR, "deployment.json")
 
 class ThreatType(IntEnum):
     DGA = 0
@@ -280,12 +284,57 @@ class BlockchainClient:
         return self.w3.from_wei(stake_wei, 'ether')
 
 
+def load_deployment() -> Optional[Dict]:
+    if os.path.exists(DEPLOYMENT_FILE):
+        with open(DEPLOYMENT_FILE, 'r') as f:
+            return json.load(f)
+    return None
+
+def get_blockchain_client(private_key: Optional[str] = None) -> 'BlockchainClient | MockBlockchainClient':
+    deployment = load_deployment()
+    
+    if deployment is None:
+        print("No deployment.json found, using mock client")
+        return MockBlockchainClient()
+    
+    pk = private_key or os.environ.get('PRIVATE_KEY')
+    if not pk:
+        print("No PRIVATE_KEY found, using mock client")
+        return MockBlockchainClient()
+    
+    network = deployment.get('network', 'sepolia')
+    
+    rpc_urls = {
+        'sepolia': os.environ.get('SEPOLIA_RPC_URL', 'https://rpc.sepolia.org'),
+        'amoy': os.environ.get('POLYGON_AMOY_RPC', 'https://rpc-amoy.polygon.technology'),
+        'hardhat': 'http://127.0.0.1:8545',
+        'localhost': 'http://127.0.0.1:8545',
+    }
+    
+    rpc_url = rpc_urls.get(network, rpc_urls['sepolia'])
+    contract_address = deployment['contracts']['ThreatLedger']
+    
+    try:
+        client = BlockchainClient(rpc_url, pk, contract_address)
+        if client.is_connected():
+            print(f"Connected to {network} blockchain")
+            print(f"Contract: {contract_address}")
+            return client
+        else:
+            print(f"Failed to connect to {network}, using mock client")
+            return MockBlockchainClient()
+    except Exception as e:
+        print(f"Blockchain client error: {e}, using mock client")
+        return MockBlockchainClient()
+
+
 class MockBlockchainClient:
     def __init__(self):
         self.threats: Dict[str, List[Dict]] = {}
         self.reputations: Dict[str, DomainReputation] = {}
         self.registered = False
         self.reports_count = 0
+        self.mock_mode = True
     
     def is_connected(self) -> bool:
         return True

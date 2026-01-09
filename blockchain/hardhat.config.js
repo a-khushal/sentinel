@@ -15,15 +15,20 @@ module.exports = {
     hardhat: {
       chainId: 31337
     },
-    mumbai: {
-      url: process.env.POLYGON_RPC_URL || "https://rpc-mumbai.maticvigil.com",
+    sepolia: {
+      url: process.env.SEPOLIA_RPC_URL || "https://rpc.sepolia.org",
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-      chainId: 80001
+      chainId: 11155111
     },
-    polygon: {
-      url: process.env.POLYGON_MAINNET_RPC || "https://polygon-rpc.com",
+    amoy: {
+      url: process.env.POLYGON_AMOY_RPC || "https://rpc-amoy.polygon.technology",
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-      chainId: 137
+      chainId: 80002
+    }
+  },
+  etherscan: {
+    apiKey: {
+      sepolia: process.env.ETHERSCAN_API_KEY || ""
     }
   },
   paths: {
@@ -33,4 +38,3 @@ module.exports = {
     artifacts: "./artifacts"
   }
 };
-

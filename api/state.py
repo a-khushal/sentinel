@@ -4,7 +4,7 @@ import threading
 
 from models.ensemble import ThreatEnsemble
 from features.graph_builder import GraphBuilder
-from blockchain.client import MockBlockchainClient
+from blockchain.client import get_blockchain_client, MockBlockchainClient
 
 try:
     from capture.sniffer import DNSSniffer
@@ -45,9 +45,12 @@ class AppState:
         self.ensemble = ThreatEnsemble(auto_load=True)
         self.model_loaded = self.ensemble.using_ml
         
-        self.blockchain = MockBlockchainClient()
-        self.blockchain.register_node()
-        self.blockchain_connected = True
+        self.blockchain = get_blockchain_client()
+        self.blockchain_connected = self.blockchain.is_connected()
+        
+        is_mock = getattr(self.blockchain, 'mock_mode', False)
+        if is_mock:
+            self.blockchain.register_node()
         
         self.detection_active = True
     

@@ -1,0 +1,10 @@
+{
+  "network": "sepolia",
+  "chainId": 11155111,
+  "deployer": "0x74A870625dDCA4f99e3767E2caF5d68f1C278b35",
+  "timestamp": "2026-01-09T22:55:12.660Z",
+  "contracts": {
+    "ThreatLedger": "0xb5430433ba52d853F667BC735fc453e389855E64",
+    "FederatedGovernance": "0xB560339aC4985bAea1764811D8cD4ed46A96C477"
+  }
+}
