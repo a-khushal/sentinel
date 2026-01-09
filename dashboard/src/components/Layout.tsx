@@ -6,6 +6,7 @@ const navItems = [
   { to: '/', label: 'Dashboard' },
   { to: '/threats', label: 'Threats' },
   { to: '/graph', label: 'Graph' },
+  { to: '/federation', label: 'Federation' },
   { to: '/blockchain', label: 'Blockchain' },
 ]
 

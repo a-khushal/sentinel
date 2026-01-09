@@ -5,7 +5,7 @@ import asyncio
 from typing import List
 import json
 
-from .routes import threats, graph, blockchain, capture
+from .routes import threats, graph, blockchain, capture, federation
 from .state import AppState
 
 state = AppState()
@@ -35,6 +35,7 @@ app.include_router(threats.router, prefix="/api/v1/threats", tags=["Threats"])
 app.include_router(graph.router, prefix="/api/v1/graph", tags=["Graph"])
 app.include_router(blockchain.router, prefix="/api/v1/blockchain", tags=["Blockchain"])
 app.include_router(capture.router, prefix="/api/v1/capture", tags=["Capture"])
+app.include_router(federation.router, prefix="/api/v1/federation", tags=["Federation"])
 
 class ConnectionManager:
     def __init__(self):

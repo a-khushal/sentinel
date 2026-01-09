@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard'
 import ThreatMonitor from './pages/ThreatMonitor'
 import GraphView from './pages/GraphView'
 import Blockchain from './pages/Blockchain'
+import Federation from './pages/Federation'
 
 export const ThemeContext = createContext<{
   dark: boolean
@@ -33,6 +34,7 @@ function App() {
             <Route path="threats" element={<ThreatMonitor />} />
             <Route path="graph" element={<GraphView />} />
             <Route path="blockchain" element={<Blockchain />} />
+            <Route path="federation" element={<Federation />} />
           </Route>
         </Routes>
       </BrowserRouter>
