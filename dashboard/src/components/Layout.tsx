@@ -3,11 +3,12 @@ import { useContext } from 'react'
 import { ThemeContext } from '../App'
 
 const navItems = [
-  { to: '/', label: 'Dashboard' },
-  { to: '/threats', label: 'Threats' },
-  { to: '/graph', label: 'Graph' },
-  { to: '/federation', label: 'Federation' },
-  { to: '/blockchain', label: 'Blockchain' },
+  { to: '/', label: 'Overview' },
+  { to: '/threats', label: 'Threat Monitor' },
+  { to: '/graph', label: 'Network Analysis' },
+  { to: '/metrics', label: 'Model Performance' },
+  { to: '/federation', label: 'Federated Learning' },
+  { to: '/blockchain', label: 'Threat Ledger' },
 ]
 
 export default function Layout() {
