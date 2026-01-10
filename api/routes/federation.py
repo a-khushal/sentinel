@@ -41,38 +41,77 @@ def get_state():
     from ..main import state
     return state
 
+def extract_lexical_features(domain: str) -> list:
+    import math
+    domain = domain.lower().rstrip('.')
+    length = len(domain)
+    digits = sum(c.isdigit() for c in domain)
+    consonants = sum(c in 'bcdfghjklmnpqrstvwxyz' for c in domain)
+    vowels = sum(c in 'aeiou' for c in domain)
+    
+    freq = {}
+    for c in domain:
+        freq[c] = freq.get(c, 0) + 1
+    entropy = -sum((f/length) * math.log2(f/length) for f in freq.values()) if length > 0 else 0
+    
+    unique_chars = len(set(domain))
+    digit_ratio = digits / length if length > 0 else 0
+    vowel_ratio = vowels / length if length > 0 else 0
+    consonant_ratio = consonants / length if length > 0 else 0
+    
+    has_numbers = 1.0 if digits > 0 else 0.0
+    num_parts = len(domain.split('.'))
+    max_consonant_seq = 0
+    current_seq = 0
+    for c in domain:
+        if c in 'bcdfghjklmnpqrstvwxyz':
+            current_seq += 1
+            max_consonant_seq = max(max_consonant_seq, current_seq)
+        else:
+            current_seq = 0
+    
+    return [
+        length / 50.0,
+        entropy / 5.0,
+        digit_ratio,
+        vowel_ratio,
+        consonant_ratio,
+        unique_chars / 26.0,
+        has_numbers,
+        num_parts / 5.0,
+        max_consonant_seq / 10.0,
+        digits / 20.0,
+        vowels / 20.0,
+        consonants / 30.0
+    ]
+
 def simulate_federated_training(config: FederationConfig):
     global federation_state
     app_state = get_state()
-    
-    if not app_state.ensemble or not app_state.ensemble.dga_model:
-        federation_state['active'] = False
-        return
-    
-    from federated.client import FederatedClient
-    from federated.server import FederatedServer
-    from models.dga_detector import DGADetector
-    
-    server_model = DGADetector()
-    server = FederatedServer(server_model, aggregation='fedavg', min_clients=config.num_clients)
-    
-    clients = []
-    for i in range(config.num_clients):
-        client_model = DGADetector()
-        client_model.load_state_dict(server.get_global_weights())
-        client = FederatedClient(
-            client_id=f"node_{i}",
-            model=client_model,
-            dp_epsilon=config.dp_epsilon
-        )
-        clients.append(client)
     
     federation_state['active'] = True
     federation_state['total_rounds'] = config.rounds
     federation_state['connected_clients'] = config.num_clients
     
+    from models.dga_detector import FeatureBasedDGA
     from scripts.generate_dga import cryptolocker_dga, necurs_dga, random_dga
     from datetime import datetime
+    import hashlib
+    
+    server_model = FeatureBasedDGA(input_dim=12)
+    
+    clients_models = []
+    for i in range(config.num_clients):
+        client_model = FeatureBasedDGA(input_dim=12)
+        client_model.load_state_dict(server_model.state_dict())
+        clients_models.append(client_model)
+    
+    benign_base = [
+        'google.com', 'facebook.com', 'amazon.com', 'microsoft.com', 'apple.com',
+        'github.com', 'stackoverflow.com', 'reddit.com', 'twitter.com', 'linkedin.com',
+        'youtube.com', 'netflix.com', 'spotify.com', 'dropbox.com', 'slack.com',
+        'zoom.us', 'notion.so', 'figma.com', 'vercel.app', 'cloudflare.com'
+    ]
     
     for round_num in range(config.rounds):
         if federation_state['should_stop']:
@@ -80,61 +119,92 @@ def simulate_federated_training(config: FederationConfig):
             
         federation_state['current_round'] = round_num + 1
         
-        global_weights = server.get_global_weights()
-        for client in clients:
-            client.set_model_weights(global_weights)
+        round_losses = []
+        total_samples = 0
+        client_updates = []
         
-        for client in clients:
-            dga_domains = cryptolocker_dga(datetime.now(), count=30) + random_dga(count=20)
-            benign_domains = ['google.com', 'facebook.com', 'amazon.com', 'microsoft.com', 'apple.com',
-                            'github.com', 'stackoverflow.com', 'reddit.com', 'twitter.com', 'linkedin.com'] * 5
+        for client_idx, client_model in enumerate(clients_models):
+            client_model.load_state_dict(server_model.state_dict())
+            
+            dga_domains = random_dga(count=50)
+            benign_domains = benign_base * 2
             
             all_domains = dga_domains + benign_domains
-            labels = [1] * len(dga_domains) + [0] * len(benign_domains)
+            labels = [1.0] * len(dga_domains) + [0.0] * len(benign_domains)
             
             combined = list(zip(all_domains, labels))
             random.shuffle(combined)
             
-            batch_data = []
-            batch_size = 16
-            max_len = 64
+            features = []
+            targets = []
+            for domain, label in combined:
+                feat = extract_lexical_features(domain)
+                features.append(feat)
+                targets.append(label)
             
-            for i in range(0, len(combined), batch_size):
-                batch = combined[i:i+batch_size]
-                domains_batch = [d for d, _ in batch]
-                labels_batch = [l for _, l in batch]
-                
-                import numpy as np
-                encoded = np.zeros((len(domains_batch), max_len), dtype=np.int64)
-                for idx, domain in enumerate(domains_batch):
-                    domain = domain.lower().rstrip('.')
-                    for j, char in enumerate(domain[:max_len]):
-                        encoded[idx, j] = min(ord(char), 127)
-                
-                x = torch.tensor(encoded, dtype=torch.long)
-                y = torch.tensor(labels_batch, dtype=torch.long)
-                batch_data.append((x, y))
+            X = torch.tensor(features, dtype=torch.float32)
+            y = torch.tensor(targets, dtype=torch.float32)
             
-            update = client.train_local(batch_data, epochs=config.local_epochs, lr=config.learning_rate)
-            server.receive_update(update)
+            optimizer = torch.optim.Adam(client_model.parameters(), lr=config.learning_rate)
+            criterion = torch.nn.BCELoss()
+            
+            client_model.train()
+            batch_size = 32
+            client_loss = 0
+            num_batches = 0
+            
+            for epoch in range(config.local_epochs):
+                for i in range(0, len(X), batch_size):
+                    x_batch = X[i:i+batch_size]
+                    y_batch = y[i:i+batch_size]
+                    
+                    optimizer.zero_grad()
+                    output = client_model(x_batch)
+                    loss = criterion(output, y_batch)
+                    loss.backward()
+                    optimizer.step()
+                    client_loss += loss.item()
+                    num_batches += 1
+            
+            avg_loss = client_loss / max(num_batches, 1)
+            round_losses.append(avg_loss)
+            total_samples += len(X)
+            
+            client_updates.append({k: v.clone() for k, v in client_model.state_dict().items()})
         
-        result = server.aggregate()
-        if result:
-            federation_state['global_model_hash'] = result.model_hash
-            federation_state['privacy_budget_used'] += config.dp_epsilon / config.rounds
-            federation_state['last_aggregation'] = time.strftime('%Y-%m-%d %H:%M:%S')
-            federation_state['history'].append({
-                'round': result.epoch,
-                'clients': result.num_clients,
-                'samples': result.total_samples,
-                'loss': result.avg_metrics.get('loss', 0),
-                'model_hash': result.model_hash,
-                'timestamp': federation_state['last_aggregation']
-            })
+        aggregated_weights = {}
+        for key in server_model.state_dict().keys():
+            stacked = torch.stack([update[key].float() for update in client_updates])
+            aggregated_weights[key] = stacked.mean(dim=0)
+            
+            if config.dp_epsilon < 10:
+                noise_scale = 0.01 / config.dp_epsilon
+                noise = torch.randn_like(aggregated_weights[key]) * noise_scale
+                aggregated_weights[key] = aggregated_weights[key] + noise
         
-        time.sleep(1)
+        server_model.load_state_dict(aggregated_weights)
+        
+        weights_bytes = b''
+        for key in sorted(aggregated_weights.keys()):
+            weights_bytes += aggregated_weights[key].cpu().numpy().tobytes()
+        model_hash = hashlib.sha256(weights_bytes).hexdigest()[:16]
+        
+        avg_round_loss = sum(round_losses) / len(round_losses)
+        
+        federation_state['global_model_hash'] = model_hash
+        federation_state['privacy_budget_used'] += config.dp_epsilon / config.rounds
+        federation_state['last_aggregation'] = time.strftime('%Y-%m-%d %H:%M:%S')
+        federation_state['history'].append({
+            'round': round_num + 1,
+            'clients': config.num_clients,
+            'samples': total_samples,
+            'loss': round(avg_round_loss, 4),
+            'model_hash': model_hash,
+            'timestamp': federation_state['last_aggregation']
+        })
+        
+        time.sleep(0.5)
     
-    federation_state['global_model_hash'] = server._compute_model_hash()
     print(f"Federated training completed after {config.rounds} rounds")
     print(f"Final model hash: {federation_state['global_model_hash']}")
     

@@ -4,9 +4,9 @@ import { ThemeContext } from '../App'
 
 interface FederationStatus {
   active: boolean
-  current_round: int
-  total_rounds: int
-  connected_clients: int
+  current_round: number
+  total_rounds: number
+  connected_clients: number
   global_model_hash: string
   privacy_budget_used: number
   last_aggregation: string | null
@@ -37,20 +37,25 @@ export default function Federation() {
   const { data: history } = useApi<FederationHistory>('/federation/history', 3000)
   const { data: clientsData } = useApi<{clients: Client[], count: number}>('/federation/clients', 3000)
 
-  const [numClients, setNumClients] = useState(3)
-  const [rounds, setRounds] = useState(5)
-  const [localEpochs, setLocalEpochs] = useState(2)
-  const [epsilon, setEpsilon] = useState(1.0)
+  const [numClients, setNumClients] = useState('3')
+  const [rounds, setRounds] = useState('5')
+  const [localEpochs, setLocalEpochs] = useState('2')
+  const [epsilon, setEpsilon] = useState('1.0')
   const [starting, setStarting] = useState(false)
+
+  const getNumClients = () => Math.max(2, Math.min(10, parseInt(numClients) || 3))
+  const getRounds = () => Math.max(1, Math.min(50, parseInt(rounds) || 5))
+  const getLocalEpochs = () => Math.max(1, Math.min(10, parseInt(localEpochs) || 2))
+  const getEpsilon = () => Math.max(0.1, Math.min(10, parseFloat(epsilon) || 1.0))
 
   const startFederation = async () => {
     setStarting(true)
     try {
       await postApi('/federation/start', {
-        num_clients: numClients,
-        rounds: rounds,
-        local_epochs: localEpochs,
-        dp_epsilon: epsilon,
+        num_clients: getNumClients(),
+        rounds: getRounds(),
+        local_epochs: getLocalEpochs(),
+        dp_epsilon: getEpsilon(),
         learning_rate: 0.01
       })
       refetch()
@@ -102,12 +107,21 @@ export default function Federation() {
           </div>
         </div>
         <div className="card p-4">
-          <div className={`text-xs mb-1 ${dark ? 'text-gray-400' : 'text-gray-500'}`}>Privacy Budget</div>
+          <div className={`text-xs mb-1 ${dark ? 'text-gray-400' : 'text-gray-500'} flex items-center gap-1`}>
+            <div className="relative group">
+              <span className="flex items-center gap-1 cursor-help">
+                Privacy Budget <span className="font-mono">ε</span>
+              </span>
+              <div className={`absolute left-0 bottom-full mb-2 w-64 p-2 rounded text-xs z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity pointer-events-none ${dark ? 'bg-gray-800 text-gray-200 border border-gray-700' : 'bg-gray-900 text-gray-100 border border-gray-600'}`}>
+                Privacy budget (ε) measures how much privacy is consumed during federated training. Lower epsilon = stronger privacy but noisier gradients. Each round spends a portion of the total budget.
+              </div>
+            </div>
+          </div>
           <div className="flex items-center gap-2">
             <div className={`flex-1 h-2 rounded-full ${dark ? 'bg-gray-700' : 'bg-gray-200'}`}>
               <div 
                 className="h-full rounded-full bg-purple-500"
-                style={{ width: `${Math.min((status?.privacy_budget_used ?? 0) / epsilon * 100, 100)}%` }}
+                style={{ width: `${Math.min((status?.privacy_budget_used ?? 0) / getEpsilon() * 100, 100)}%` }}
               />
             </div>
             <span className="font-mono text-xs">{(status?.privacy_budget_used ?? 0).toFixed(2)}</span>
@@ -121,49 +135,44 @@ export default function Federation() {
           <div className="space-y-4">
             <div>
               <label className={`text-xs ${dark ? 'text-gray-400' : 'text-gray-500'}`}>Number of Clients</label>
+              <p className={`text-xs mb-1 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Simulated organizations participating (2-10)</p>
               <input
-                type="number"
+                type="text"
                 value={numClients}
-                onChange={(e) => setNumClients(parseInt(e.target.value) || 3)}
-                min={2}
-                max={10}
+                onChange={(e) => setNumClients(e.target.value)}
                 className="w-full mt-1"
                 disabled={status?.active}
               />
             </div>
             <div>
               <label className={`text-xs ${dark ? 'text-gray-400' : 'text-gray-500'}`}>Rounds</label>
+              <p className={`text-xs mb-1 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Number of federated aggregation rounds (1-50)</p>
               <input
-                type="number"
+                type="text"
                 value={rounds}
-                onChange={(e) => setRounds(parseInt(e.target.value) || 5)}
-                min={1}
-                max={50}
+                onChange={(e) => setRounds(e.target.value)}
                 className="w-full mt-1"
                 disabled={status?.active}
               />
             </div>
             <div>
               <label className={`text-xs ${dark ? 'text-gray-400' : 'text-gray-500'}`}>Local Epochs</label>
+              <p className={`text-xs mb-1 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Epochs each client trains locally before sharing (1-10)</p>
               <input
-                type="number"
+                type="text"
                 value={localEpochs}
-                onChange={(e) => setLocalEpochs(parseInt(e.target.value) || 2)}
-                min={1}
-                max={10}
+                onChange={(e) => setLocalEpochs(e.target.value)}
                 className="w-full mt-1"
                 disabled={status?.active}
               />
             </div>
             <div>
-              <label className={`text-xs ${dark ? 'text-gray-400' : 'text-gray-500'}`}>Privacy Epsilon (lower = more private)</label>
+              <label className={`text-xs ${dark ? 'text-gray-400' : 'text-gray-500'}`}>Privacy Epsilon</label>
+              <p className={`text-xs mb-1 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Lower = stronger privacy but noisier gradients (0.1-10)</p>
               <input
-                type="number"
+                type="text"
                 value={epsilon}
-                onChange={(e) => setEpsilon(parseFloat(e.target.value) || 1.0)}
-                min={0.1}
-                max={10}
-                step={0.1}
+                onChange={(e) => setEpsilon(e.target.value)}
                 className="w-full mt-1"
                 disabled={status?.active}
               />
@@ -230,7 +239,7 @@ export default function Federation() {
           </div>
           <div>
             <div className={`text-xs ${dark ? 'text-gray-400' : 'text-gray-500'}`}>Target Epsilon</div>
-            <div className="font-mono font-semibold">{epsilon}</div>
+            <div className="font-mono font-semibold">{getEpsilon()}</div>
           </div>
           <div>
             <div className={`text-xs ${dark ? 'text-gray-400' : 'text-gray-500'}`}>Delta</div>
