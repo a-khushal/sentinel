@@ -445,7 +445,7 @@ if threat['confidence'] >= 0.8:
 ### In Progress / Planned
 
 - [ ] **Tunnel Detector**: DNS tunneling detection model
-- [ ] **Evaluation Scripts**: RQ2-RQ5 experiments
+- [x] **Evaluation Scripts**: RQ2-RQ5 experiments
 - [ ] **ISOT Dataset**: Additional dataset integration
 - [ ] **Paper Writing**: LaTeX paper structure
 
@@ -557,6 +557,34 @@ python scripts/generate_graph_data.py
 source .venv/bin/activate
 python evaluation/experiments/rq1_detection.py
 # Results saved to: evaluation/results/rq1_detection.json
+```
+
+**RQ2: Federated vs Centralized Training**
+```bash
+source .venv/bin/activate
+python evaluation/experiments/rq2_federated.py
+# Results saved to: evaluation/results/rq2_federated.json
+```
+
+**RQ3: Privacy-Utility Trade-off**
+```bash
+source .venv/bin/activate
+python evaluation/experiments/rq3_privacy.py
+# Results saved to: evaluation/results/rq3_privacy.json
+```
+
+**RQ4: Blockchain Performance**
+```bash
+source .venv/bin/activate
+python evaluation/experiments/rq4_blockchain.py
+# Results saved to: evaluation/results/rq4_blockchain.json
+```
+
+**RQ5: Adversarial Robustness**
+```bash
+source .venv/bin/activate
+python evaluation/experiments/rq5_adversarial.py
+# Results saved to: evaluation/results/rq5_adversarial.json
 ```
 
 **Quick CTU-13 Test:**
@@ -707,9 +735,21 @@ Comparison against published results:
 - **DeepDGA** (Woodbridge et al., 2016): LSTM-based DGA detection
 - **Kitsune** (Mirsky et al., NDSS 2018): Autoencoder anomaly detection
 
+### Evaluation Scripts
+
+All RQ experiments are available:
+
+- **RQ1** (`rq1_detection.py`): Compares T-DGNN vs state-of-the-art baselines
+- **RQ2** (`rq2_federated.py`): Measures accuracy trade-off of federated vs centralized training
+- **RQ3** (`rq3_privacy.py`): Tests privacy-utility trade-off with different epsilon values
+- **RQ4** (`rq4_blockchain.py`): Measures blockchain latency and throughput
+- **RQ5** (`rq5_adversarial.py`): Tests robustness against data/model poisoning attacks
+
 ### Current Results
 
 **RQ1 Evaluation (CTU-13 + Synthetic Botnet):**
 - DGA Detector: F1=0.999, AUC=1.000
 - Ensemble: F1=0.999, AUC=1.000
 - Outperforms all baselines (BotGraph: 0.89, DeepDGA: 0.93, Kitsune: 0.90)
+
+**RQ2-RQ5**: Scripts created, ready to run experiments
