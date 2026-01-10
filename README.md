@@ -1,165 +1,427 @@
 # SENTINEL
 
-Privacy-preserving botnet detection via federated graph learning and blockchain-anchored threat intelligence.
-
-## What This Is
-
-A decentralized framework for DNS-based botnet detection combining:
-- Temporal Dynamic Graph Neural Network (T-DGNN) for detecting C2 patterns
-- Federated learning with differential privacy for collaborative training
-- Blockchain-based threat intelligence ledger
-
-Target: IEEE S&P, NDSS, ACM CCS level publication + deployable application.
+Privacy-preserving botnet detection using federated graph learning and blockchain-based threat intelligence.
 
 ---
 
-## Implementation Status
+## Introduction
 
-### Core Detection (Working)
+SENTINEL is a comprehensive security framework designed to detect botnet activity hidden within DNS traffic. Unlike traditional signature-based detection systems that rely on blacklists of known malicious domains, SENTINEL employs machine learning to identify previously unseen threats by analyzing behavioral patterns in DNS queries.
 
-| Component | File | Status |
-|-----------|------|--------|
-| DNS Sniffer | `capture/sniffer.py` | Done - Scapy-based packet capture |
-| DNS Parser | `capture/parser.py` | Done - Extracts query/response data |
-| Preprocessor | `capture/preprocessor.py` | Done - Cleans and normalizes |
-| Lexical Features | `features/lexical.py` | Done - Entropy, n-grams, char ratios |
-| Temporal Features | `features/temporal.py` | Done - Query rate, periodicity |
-| Structural Features | `features/structural.py` | Done - NXDOMAIN ratio, TTL variance |
-| Graph Builder | `features/graph_builder.py` | Done - NetworkX + PyG conversion |
-| DGA Detector | `models/dga_detector.py` | Done - Transformer/LSTM classifier |
-| T-DGNN | `models/tdgnn.py` | Done - GraphSAGE + GRU + temporal attention |
-| Ensemble | `models/ensemble.py` | Done - Combines DGA + GNN scores |
+The system addresses a critical gap in cybersecurity: while botnets have become increasingly sophisticated in evading detection, the tools to combat them have remained fragmented and reactive. SENTINEL takes a proactive approach by combining three cutting-edge technologies: graph neural networks for pattern recognition, federated learning for privacy-preserving collaboration, and blockchain for tamper-proof threat intelligence sharing.
 
-### Federated Learning (Scaffolded)
-
-| Component | File | Status |
-|-----------|------|--------|
-| FL Client | `federated/client.py` | Done - Flower client + DP noise |
-| FL Server | `federated/server.py` | Done - FedAvg aggregation |
-| Aggregation | - | Merged into server.py |
-| Privacy | - | Merged into client.py (Gaussian mechanism) |
-
-### Blockchain (Scaffolded)
-
-| Component | File | Status |
-|-----------|------|--------|
-| ThreatLedger | `blockchain/contracts/ThreatLedger.sol` | Done - Commit-reveal, reputation |
-| FederatedGovernance | `blockchain/contracts/FederatedGovernance.sol` | Done - Model proposals, voting |
-| NodeRegistry | - | Merged into ThreatLedger.sol |
-| Python Client | `blockchain/client.py` | Done - Web3.py + mock mode |
-| Hardhat Config | `blockchain/hardhat.config.js` | Done - Polygon Mumbai setup |
-| Deploy Script | `blockchain/scripts/deploy.js` | Done |
-
-### API (Working)
-
-| Endpoint | File | Status |
-|----------|------|--------|
-| `GET /` | `api/main.py` | Done - System status |
-| `GET /api/v1/threats` | `api/routes/threats.py` | Done |
-| `POST /api/v1/threats/analyze` | `api/routes/threats.py` | Done |
-| `GET /api/v1/graph` | `api/routes/graph.py` | Done |
-| `POST /api/v1/capture/start` | `api/routes/capture.py` | Done |
-| `GET /api/v1/blockchain/status` | `api/routes/blockchain.py` | Done |
-| `/api/v1/model/*` | - | Not implemented |
-| `/api/v1/federation/*` | - | Not implemented |
-
-### Dashboard (Working)
-
-| Page | File | Status |
-|------|------|--------|
-| Dashboard | `dashboard/src/pages/Dashboard.tsx` | Done - Overview stats |
-| Threat Monitor | `dashboard/src/pages/ThreatMonitor.tsx` | Done - Domain analysis, threat table |
-| Graph View | `dashboard/src/pages/GraphView.tsx` | Done - Placeholder for force-graph |
-| Blockchain | `dashboard/src/pages/Blockchain.tsx` | Done - Reports, reputation lookup |
-| Model Metrics | - | Not implemented |
-| Federation | - | Not implemented |
-
-### Not Yet Implemented
-
-| Component | Planned Location | Notes |
-|-----------|------------------|-------|
-| Tunnel Detector | `models/tunnel_detector.py` | DNS tunneling detection |
-| Model Routes | `api/routes/model.py` | Metrics, training status |
-| Federation Routes | `api/routes/federation.py` | Join network, status |
-| ModelMetrics Page | `dashboard/src/pages/ModelMetrics.tsx` | ROC curves, confusion matrix |
-| Federation Page | `dashboard/src/pages/Federation.tsx` | Peer nodes, training rounds |
-| Evaluation Suite | `evaluation/` | Experiments for RQ1-RQ5 |
-| Paper LaTeX | `paper/` | Main.tex, figures |
-| TimescaleDB | - | Currently in-memory only |
-| Redis | - | Currently no pub/sub |
-| PCAP Upload | UI button exists | Handler incomplete |
-| WebSocket Threats | Stubbed | Not pushing real-time |
+What makes SENTINEL unique is its ability to detect coordinated botnet behavior that would be invisible when analyzing individual DNS queries in isolation. By modeling DNS traffic as a temporal graph where clients, domains, and servers form an interconnected network, the system can identify subtle patterns of synchronized malicious activity across multiple infected hosts.
 
 ---
 
-## Setup
+## The Problem
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+Botnets are networks of compromised computers controlled by attackers for DDoS attacks, spam, and data theft. They communicate with Command & Control (C2) servers using DNS, employing evasion techniques:
+
+- **Domain Generation Algorithms (DGA)**: Generate thousands of random domains daily. Attacker registers one, malware finds it. Blacklists can't keep up.
+- **Fast-Flux**: Rapidly rotate IP addresses behind domains to hide infrastructure.
+- **DNS Tunneling**: Encode data in DNS queries to bypass firewalls.
+- **Slow-and-Low**: Space out C2 beacons to avoid rate-based detection.
+
+**The Privacy Paradox**: Effective detection needs diverse training data from multiple organizations, but DNS logs contain sensitive user behavior - organizations can't share them due to GDPR, HIPAA, and competitive concerns.
+
+SENTINEL solves this with federated learning (train without sharing data) and blockchain (share threats without central authority).
+
+---
+
+## Solution Overview
+
+SENTINEL approaches botnet detection as a multi-layered problem requiring multiple complementary techniques. At its core, the system captures DNS traffic either through live packet sniffing using Scapy or by analyzing uploaded PCAP files. This raw traffic is then processed through a sophisticated feature extraction pipeline that examines the data from multiple angles.
+
+The detection engine employs two primary machine learning models working in concert. The first is a DGA (Domain Generation Algorithm) detector that analyzes individual domain names to determine if they were algorithmically generated by malware. The second is a Temporal Dynamic Graph Neural Network (T-DGNN) that examines the relationships between clients, domains, and servers over time to identify coordinated botnet behavior.
+
+These detection capabilities are enhanced by a federated learning system that allows multiple organizations to collaboratively improve the detection models without ever sharing their raw DNS logs. Each participant trains on their local data and only shares encrypted model updates, protected by differential privacy guarantees that prevent any information about individual queries from being extracted.
+
+Finally, when threats are detected with high confidence, they are automatically reported to a blockchain-based threat intelligence ledger. This creates an immutable, decentralized record of threats that any participant can query to check domain reputation, without relying on a central authority that could be compromised or censored.
+
 ```
-
-For ML models (optional, large download):
-```bash
-pip install torch --index-url https://download.pytorch.org/whl/cpu
-pip install torch-geometric
-```
-
-For blockchain contracts:
-```bash
-cd blockchain && npm install
++------------------------------------------------------------------+
+|                         SENTINEL SYSTEM                           |
++------------------------------------------------------------------+
+|                                                                    |
+|   +------------------+    +------------------+    +-------------+  |
+|   |   DNS Capture    |    |   ML Detection   |    |  Blockchain |  |
+|   |  (Scapy/PCAP)    |--->|  (DGA + T-DGNN)  |--->|   Ledger    |  |
+|   +------------------+    +------------------+    +-------------+  |
+|           |                       |                      |         |
+|           v                       v                      v         |
+|   +------------------+    +------------------+    +-------------+  |
+|   | Feature Extract  |    | Federated Learn  |    |   Web UI    |  |
+|   | Lexical/Temporal |    | Privacy-Preserv. |    |  Dashboard  |  |
+|   +------------------+    +------------------+    +-------------+  |
+|                                                                    |
++------------------------------------------------------------------+
 ```
 
 ---
 
-## Run
+## Detection Pipeline
 
-### Demo (No servers, mock data)
-```bash
-python scripts/demo.py
+The detection pipeline represents the journey of DNS data from raw network packets to actionable threat intelligence. Understanding this flow is essential to appreciating how SENTINEL achieves its detection capabilities.
+
+When DNS traffic enters the system, it first passes through the capture layer where individual packets are parsed to extract query names, response codes, source IPs, and timestamps. This structured data then feeds into the feature extraction module, which computes dozens of characteristics across four categories: lexical features examine the character composition of domain names, temporal features analyze query timing patterns, structural features look at DNS-specific properties like NXDOMAIN rates, and relational features capture how different entities in the network relate to each other.
+
+These features serve dual purposes. The lexical and some structural features feed directly into the DGA detector for per-domain analysis. Meanwhile, the relational features are used to construct a graph representation of the DNS traffic, where nodes represent clients, domains, nameservers, and resolved IPs, while edges capture the query and resolution relationships between them. This graph, along with temporal snapshots, feeds into the T-DGNN for network-wide analysis.
+
+The outputs from both detection models are combined in an ensemble layer that weights their contributions based on confidence and context. High-confidence detections trigger automatic reporting to the blockchain, while all results are surfaced through the dashboard for human review.
+
+```
+DNS Traffic
+     |
+     v
++---------------------------+
+|      DNS Capture          |
+|  (Scapy live / PCAP)      |
++---------------------------+
+     |
+     v
++---------------------------+
+|   Feature Extraction      |
++---------------------------+
+     |
+     +-------+-------+-------+
+     |       |       |       |
+     v       v       v       v
+ Lexical  Temporal Struct  Graph
+     |       |       |       |
+     +-------+-------+-------+
+             |
+             v
++---------------------------+
+|     Graph Construction    |
+| Clients -> Domains -> IPs |
++---------------------------+
+             |
+     +-------+-------+
+     |               |
+     v               v
++-----------+  +-----------+
+|    DGA    |  |  T-DGNN   |
+| Detector  |  |  (Graph)  |
++-----------+  +-----------+
+     |               |
+     +-------+-------+
+             |
+             v
++---------------------------+
+|    Ensemble Scoring       |
++---------------------------+
+             |
+             v
++---------------------------+
+|  Threat Alert / Report    |
++---------------------------+
 ```
 
-### Full Application
-```bash
-# Terminal 1: Backend
-source .venv/bin/activate
-python -m uvicorn api.main:app --port 8000
+### Feature Categories
 
-# Terminal 2: Frontend
-cd dashboard && npm install && npm run dev
-```
-
-- Backend: http://localhost:8000
-- Frontend: http://localhost:3000
-- API Docs: http://localhost:8000/docs
+| Category | Features | Purpose |
+|----------|----------|---------|
+| Lexical | Entropy, length, digit ratio, vowel ratio, n-grams | DGA domains have high entropy, random patterns |
+| Temporal | Query rate, periodicity, burst score | C2 beacons have regular intervals |
+| Structural | NXDOMAIN ratio, TTL variance, response size | DGA has high failure rate, tunneling has large responses |
+| Relational | Shared nameservers, IP fanout, co-queries | Graph construction for coordinated detection |
 
 ---
 
-## Detection Modes
+## DGA Detection
 
-| Mode | Requirements | What Works |
-|------|--------------|------------|
-| Heuristic | Base deps only | Lexical analysis, entropy, patterns |
-| ML | + torch | DGA detection via trained model |
-| Full | + torch-geometric | T-DGNN graph-based detection |
+Domain Generation Algorithm detection is one of the most critical capabilities in modern botnet defense. Understanding why DGAs exist and how they work is key to appreciating the sophistication required to detect them.
 
-System auto-falls back to heuristic mode if torch not installed.
+Traditional malware hardcoded the addresses of their command and control servers directly into their code. This made them easy to shut down - security researchers could analyze the malware, extract the server addresses, and have them blocked or seized. Botnet operators needed a more resilient approach, and DGAs provided the solution.
+
+A Domain Generation Algorithm is essentially a mathematical function that takes a seed value (often the current date) and produces a list of domain names. The malware runs this algorithm daily, generating hundreds or thousands of potential domains to contact. The botnet operator, knowing the same algorithm, registers just one or two of these domains each day. The infected machines try each generated domain until they find one that resolves - establishing the C2 connection.
+
+This approach is devastatingly effective against blacklists. Even if security researchers discover and block today's active domain, tomorrow the algorithm generates an entirely new set. The only way to defeat DGAs is to detect the algorithmically-generated domains themselves, distinguishing them from legitimate human-created domain names.
+
+### What is DGA?
+
+Malware uses Domain Generation Algorithms to create pseudo-random domains for C2 communication:
+
+```
+Cryptolocker: xmplkjhgfdsazxc.com
+Necurs:       aabbccddeeeffgg.org  
+Conficker:    mpfjswogh.biz
+```
+
+Instead of hardcoding server IPs (easily blocked), malware generates thousands of domains daily. Attacker registers just one - malware tries them all until it connects.
+
+### Architecture
+
+```
+Domain: "xmplkjhgfdsazxc.com"
+              |
+              v
+    +--------------------+
+    | Character Encoding |
+    | (ord(c) -> index)  |
+    +--------------------+
+              |
+              v
+    +--------------------+
+    | Char + Positional  |
+    |    Embeddings      |
+    +--------------------+
+              |
+       +------+------+
+       |             |
+       v             v
++------------+ +------------+
+| Transformer| | Bi-LSTM    |
+| (2 layers, | | (64 hidden)|
+|  4 heads)  | |            |
++------------+ +------------+
+       |             |
+       v             v
+  Mean Pool    Concat h_n
+       |             |
+       +------+------+
+              |
+              v
+    +--------------------+
+    |   FC: 192->64->2   |
+    +--------------------+
+              |
+              v
+    [benign_prob, dga_prob]
+```
+
+**Why Transformer + LSTM?**
+- Transformer: Global character relationships via self-attention
+- LSTM: Sequential patterns and character transitions
+- Combined: More robust than either alone
 
 ---
 
-## Architecture
+## T-DGNN (Temporal Dynamic Graph Neural Network)
+
+While DGA detection excels at identifying suspicious individual domains, it has a fundamental blind spot: it cannot see the forest for the trees. Botnets are, by definition, networks of compromised machines acting in coordination. This coordination leaves distinctive patterns in network traffic that are invisible when examining queries one at a time.
+
+Consider a sophisticated botnet that uses legitimate-looking domain names and carefully times its C2 communications to mimic normal browsing patterns. Each individual query might appear completely benign. But zoom out to see the network as a whole, and patterns emerge: multiple machines querying the same unusual domains, query timing synchronized across hosts, resolution patterns that form distinctive graph structures.
+
+The Temporal Dynamic Graph Neural Network (T-DGNN) is designed specifically to capture these coordination patterns. It models DNS traffic as a graph where nodes represent network entities (clients, domains, nameservers, IPs) and edges represent the relationships between them (queries, resolutions, authoritative serving). By analyzing how this graph structure evolves over time, T-DGNN can detect the subtle signatures of coordinated botnet activity.
+
+The "temporal" aspect is crucial. Botnets often employ "slow-and-low" tactics, spreading their C2 communications over hours or days to avoid triggering rate-based detection. T-DGNN maintains a sequence of graph snapshots and uses recurrent neural network components to learn patterns that unfold across time, catching attacks that would slip past systems analyzing only instantaneous traffic.
+
+### Why Graphs?
+
+Single-domain analysis misses **coordinated behavior**. One infected machine querying weird domains might be noise. Ten machines querying the same weird domains in sync = botnet.
+
+### Graph Schema
 
 ```
-DNS Traffic → Sniffer → Parser → Feature Extraction → Graph Builder
-                                        ↓
-                              [Lexical][Temporal][Structural]
-                                        ↓
-                              T-DGNN / DGA Detector / Ensemble
-                                        ↓
-                              Threat Detection + Confidence Score
-                                        ↓
-                              Blockchain Report (optional)
+Node Types:
+  - CLIENT: Source IP addresses
+  - DOMAIN: Queried domain names
+  - NAMESERVER: Authoritative NS
+  - IP: Resolved addresses
+
+Edge Types:
+  - QUERIES: Client -> Domain (with timestamp)
+  - RESOLVES_TO: Domain -> IP (with TTL)
+  - SERVED_BY: Domain -> Nameserver
+```
+
+### Architecture
+
+```
+Temporal Snapshots: G_t, G_{t-1}, ..., G_{t-k}
+                          |
+        +-----------------+-----------------+
+        |                 |                 |
+        v                 v                 v
+   +---------+       +---------+       +---------+
+   | G_t     |       | G_{t-1} |       | G_{t-k} |
+   +---------+       +---------+       +---------+
+        |                 |                 |
+        v                 v                 v
+   +---------+       +---------+       +---------+
+   |GraphSAGE|       |GraphSAGE|       |GraphSAGE|
+   | 2 layers|       | 2 layers|       | 2 layers|
+   +---------+       +---------+       +---------+
+        |                 |                 |
+        v                 v                 v
+      h_t              h_{t-1}           h_{t-k}
+        |                 |                 |
+        +-----------------+-----------------+
+                          |
+                          v
+              +------------------------+
+              |       GRU Layer        |
+              | (Temporal aggregation) |
+              +------------------------+
+                          |
+                          v
+              +------------------------+
+              |   Temporal Attention   |
+              |  (Focus on key times)  |
+              +------------------------+
+                          |
+              +-----------+-----------+
+              |                       |
+              v                       v
+    +----------------+      +----------------+
+    | Node Classifier|      |Graph Classifier|
+    | (Is infected?) |      |(Botnet present)|
+    +----------------+      +----------------+
+```
+
+**GraphSAGE**: Learns node embeddings by aggregating neighbor information
+**GRU**: Captures how graph evolves over time (slow-and-low attacks)
+**Attention**: Focuses on informative time windows, ignores normal periods
+
+---
+
+## Ensemble Approach
+
+In machine learning, ensemble methods combine multiple models to achieve better performance than any single model could provide alone. SENTINEL's ensemble approach is particularly important because the different detection methods have complementary strengths and weaknesses.
+
+The DGA detector excels at rapid analysis of individual domain names. It can process thousands of domains per second and provides immediate verdicts on whether a domain appears algorithmically generated. However, it operates in isolation - it cannot see that multiple machines are querying the same suspicious domain, or that queries are arriving in suspiciously synchronized patterns.
+
+The T-DGNN provides the network-wide view that DGA detection lacks. By modeling DNS traffic as a graph and analyzing its temporal evolution, it can detect coordination patterns that indicate botnet activity even when individual domains appear benign. However, graph analysis is computationally intensive and requires accumulating enough traffic to form meaningful patterns.
+
+The heuristic analyzer provides a fallback when machine learning models are unavailable or as an additional signal to incorporate domain knowledge that may not be fully captured by learned models. Rules based on entropy thresholds, character distribution anomalies, and known malicious patterns provide reliable baseline detection.
+
+By combining these approaches, SENTINEL achieves robust detection across a wide range of attack scenarios. The ensemble weights can be adjusted based on deployment context - emphasizing speed for real-time protection, accuracy for forensic analysis, or coverage for comprehensive monitoring.
+
+Neither approach alone is sufficient:
+
+| Method | Strength | Weakness |
+|--------|----------|----------|
+| DGA Detector | Fast, works on single domains | Misses coordinated attacks |
+| T-DGNN | Catches coordination | Needs graph context |
+| Heuristics | No training needed | High false positives |
+
+**Ensemble combines all:**
+```python
+confidence = 0.5 * dga_score + 0.3 * gnn_score + 0.2 * heuristic_score
+```
+
+Falls back gracefully if ML unavailable.
+
+---
+
+## Federated Learning
+
+Machine learning models are only as good as the data they're trained on. A botnet detection model trained on data from a single organization will inevitably have blind spots - it won't recognize botnet families that organization hasn't encountered, attack patterns that target different industries, or evasion techniques developed after the training data was collected.
+
+The ideal scenario would be to pool DNS data from hundreds of organizations across different sectors and geographies, creating a comprehensive training dataset that covers the full spectrum of botnet behavior. But this is precisely what privacy regulations and business concerns prohibit. DNS logs reveal which websites employees visit, what cloud services a company uses, and countless other sensitive details that organizations cannot and should not share.
+
+Federated learning offers an elegant solution to this paradox. Instead of bringing data to a central location for training, federated learning brings the training to the data. Each participating organization trains the detection model on their local DNS data, producing model updates that capture what was learned without revealing the underlying data. These updates are aggregated by a central server to improve the global model, which is then distributed back to participants.
+
+The key insight is that model gradients - the mathematical updates computed during training - contain useful information about patterns in the data without being the data itself. However, research has shown that sufficiently motivated attackers can sometimes extract information about training data from these gradients. This is where differential privacy comes in.
+
+By adding carefully calibrated random noise to the gradient updates before sharing them, SENTINEL provides mathematical guarantees about privacy. The noise is large enough to prevent any meaningful inference about individual DNS queries, but small enough that the aggregate signal from many participants still improves the model. This is quantified by the privacy parameter epsilon - lower values mean stronger privacy but potentially reduced model accuracy.
+- Legal: GDPR, HIPAA compliance
+- Competitive: Network topology exposure
+- Privacy: User browsing patterns
+
+### Solution: Train Without Sharing
+
+```
+              +-------------------+
+              |  Central Server   |
+              | (Aggregates ONLY) |
+              +-------------------+
+                      |
+          +-----------+-----------+
+          |           |           |
+          v           v           v
+    +---------+ +---------+ +---------+
+    | Org A   | | Org B   | | Org C   |
+    | (Data   | | (Data   | | (Data   |
+    | stays)  | | stays)  | | stays)  |
+    +---------+ +---------+ +---------+
+```
+
+### Protocol (FedAvg)
+
+```
+For each round:
+  1. Server broadcasts global model weights
+  2. Each client trains on local DNS data (2 epochs)
+  3. Client computes gradient: g = W_old - W_new
+  4. Client adds DP noise: g_noisy = g + N(0, σ²)
+  5. Server aggregates: W_new = W_old - avg(g_noisy)
+  6. Model hash recorded on blockchain
+```
+
+### Differential Privacy
+
+Prevents inference attacks (extracting training data from gradients):
+
+```
+Noise scale σ = (2/n) × √(2×ln(1.25/δ)) / ε
+
+With ε=1.0, δ=10⁻⁵:
+  Attacker advantage < 2.7× random guessing
+```
+
+Privacy budget tracked per round. When exhausted, training stops.
+
+---
+
+## Blockchain Integration
+
+Threat intelligence sharing has traditionally relied on centralized platforms where a trusted organization collects, validates, and distributes information about malicious indicators. While these systems have provided value, they suffer from fundamental limitations that blockchain technology can address.
+
+Centralized threat intelligence platforms require participants to trust the platform operator - to believe they won't be compromised, won't censor reports, won't selectively share intelligence, and won't be shut down by legal or political pressure. This trust requirement limits participation, as organizations may be reluctant to share sensitive threat data with a third party, and it creates a single point of failure that sophisticated adversaries can target.
+
+Furthermore, centralized platforms struggle with attribution and accountability. It's difficult to verify when a threat was first reported, who reported it, and whether reports have been modified after the fact. This makes it hard to build reputation systems that reward accurate reporting and penalize false positives or malicious submissions.
+
+SENTINEL's blockchain layer addresses these concerns by creating a decentralized, immutable ledger of threat reports. When a node reports a malicious domain, that report is cryptographically signed and recorded on the Ethereum blockchain (Sepolia testnet in the current implementation). Once recorded, the report cannot be altered or deleted - creating a permanent, verifiable record of threat intelligence.
+
+The system uses economic incentives to ensure quality. Nodes must stake cryptocurrency to participate, and their votes on threat reports are weighted by their stake. This prevents Sybil attacks where an adversary creates many fake identities to manipulate the system, and it creates accountability - nodes that consistently report false positives risk their reputation and stake.
+
+### Why Blockchain?
+
+| Problem | Traditional | Blockchain |
+|---------|-------------|------------|
+| Trust | Central authority | Trustless consensus |
+| Tampering | Database editable | Immutable ledger |
+| Availability | Single point of failure | Decentralized |
+| Spam | No cost to report | Stake requirement |
+
+### Smart Contracts (Sepolia Testnet)
+
+**ThreatLedger.sol**
+```solidity
+function reportThreat(
+    bytes32 domainHash,
+    uint8 threatType,      // DGA, C2, TUNNEL
+    uint256 confidence,    // 0-100
+    bytes32 evidenceHash
+) external onlyRegisteredNode {
+    // Stake-weighted voting
+    maliciousVotes[domainHash] += stakes[msg.sender] * confidence;
+}
+
+function queryReputation(bytes32 domainHash) external view returns (
+    uint256 totalReports,
+    uint256 maliciousScore,
+    uint256 firstSeen
+);
+```
+
+**Deployed:**
+```
+ThreatLedger:        0xb5430433ba52d853F667BC735fc453e389855E64
+FederatedGovernance: 0xB560339aC4985bAea1764811D8cD4ed46A96C477
+```
+
+### Auto-Reporting
+
+Threats with ≥80% confidence automatically report to blockchain:
+
+```python
+if threat['confidence'] >= 0.8:
+    tx_hash = blockchain.report_threat(domain, threat_type, confidence)
+    # View on: sepolia.etherscan.io/tx/{tx_hash}
 ```
 
 ---
@@ -168,45 +430,99 @@ DNS Traffic → Sniffer → Parser → Feature Extraction → Graph Builder
 
 ```
 sentinel/
-├── capture/          DNS packet capture (Scapy)
-├── features/         Feature extraction + graph building
-├── models/           Detection models (DGA, T-DGNN, ensemble)
-├── federated/        FL client/server (Flower + DP)
-├── blockchain/       Solidity contracts + Python client
-├── api/              FastAPI backend
-├── dashboard/        React frontend
-└── scripts/          Demo, training, utilities
+├── capture/         # DNS capture (Scapy sniffer, PCAP parser)
+├── features/        # Feature extraction (lexical, temporal, structural, graph)
+├── models/          # ML models (DGA detector, T-DGNN, ensemble)
+├── federated/       # FL client/server with differential privacy
+├── blockchain/      # Solidity contracts + Python Web3 client
+├── api/             # FastAPI backend routes
+├── dashboard/       # React + TypeScript frontend
+└── scripts/         # Training, demo, utilities
 ```
 
 ---
 
-## Key Files
+## Setup
 
-| Purpose | File |
-|---------|------|
-| Domain analysis | `models/ensemble.py` → `analyze_domain()` |
-| Graph construction | `features/graph_builder.py` → `build_graph()` |
-| DGA scoring | `features/lexical.py` → `extract()` |
-| API entry | `api/main.py` |
-| Mock demo | `scripts/demo.py` |
+```bash
+# 1. Python environment
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# 2. ML dependencies (recommended)
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install torch-geometric flwr opacus
+
+# 3. Dashboard
+cd dashboard && npm install && cd ..
+
+# 4. Blockchain (optional - needs Sepolia ETH)
+cd blockchain && npm install
+echo "SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY" > .env
+echo "PRIVATE_KEY=your_wallet_private_key" >> .env
+npm run deploy:sepolia
+```
 
 ---
 
-## Datasets (For Evaluation)
+## Run
 
-| Dataset | Use |
-|---------|-----|
-| CTU-13 | Primary botnet evaluation |
-| ISOT | Cross-dataset validation |
-| ISCX-Bot-2014 | Additional families |
-| Custom Multi-Site | Federated evaluation (to create) |
+**Terminal 1 - Backend:**
+```bash
+source .venv/bin/activate
+export PRIVATE_KEY=your_key           # optional
+export SEPOLIA_RPC_URL=your_rpc       # optional
+python -m uvicorn api.main:app --port 8000
+```
+
+**Terminal 2 - Frontend:**
+```bash
+cd dashboard && npm run dev
+```
+
+**Access:**
+- Dashboard: http://localhost:3000
+- API Docs: http://localhost:8000/docs
 
 ---
 
-## Research Questions (Planned)
+## Usage
 
-- RQ1: T-DGNN vs baselines (BotGraph, DeepDGA, Kitsune)
-- RQ2: Federated vs centralized accuracy gap
-- RQ3: Differential privacy impact on detection
-- RQ4: Blockchain latency and throughput
-- RQ5: Adversarial robustness
+| Page | Purpose |
+|------|---------|
+| Dashboard | System overview, stats |
+| Threats | Analyze domains, view detections |
+| Graph | T-DGNN analysis, live DNS capture |
+| Federation | FL training with privacy tracking |
+| Blockchain | Report threats, query reputation |
+
+**Live DNS Capture** (requires sudo):
+```bash
+sudo .venv/bin/python -m uvicorn api.main:app --port 8000
+```
+
+---
+
+## API Endpoints
+
+```
+POST /api/v1/threats/analyze          Analyze a domain
+POST /api/v1/graph/analyze            Run T-DGNN on traffic  
+POST /api/v1/capture/start            Start DNS capture
+POST /api/v1/federation/start         Start FL training
+POST /api/v1/blockchain/report        Report threat on-chain
+GET  /api/v1/blockchain/reputation/{domain}
+```
+
+---
+
+## Detection Modes
+
+| Mode | Requirements | Capability |
+|------|--------------|------------|
+| Heuristic | Base deps | Entropy, patterns |
+| ML | + torch | DGA detection |
+| Full | + torch-geometric | T-DGNN graphs |
+
+System auto-falls back if dependencies unavailable.
