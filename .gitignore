@@ -66,3 +66,6 @@ htmlcov/
 
 *.ipynb_checkpoints/
 
+# Evaluation results (generated files)
+evaluation/results/
+
