@@ -1,7 +1,7 @@
 {
   "experiment": "RQ1_Detection_Accuracy",
   "dataset": "CTU-13",
-  "timestamp": "2026-01-10T11:05:10.547756",
+  "timestamp": "2026-01-10T12:59:35.120953",
   "dataset_stats": {
     "total_samples": 11000,
     "botnet_samples": 1000,
@@ -9,26 +9,26 @@
   },
   "results": {
     "dga_detector": {
-      "accuracy": 0.9998181818181818,
+      "accuracy": 1.0,
       "precision": 1.0,
-      "recall": 0.998,
-      "f1": 0.998998998998999,
+      "recall": 1.0,
+      "f1": 1.0,
       "auc": 1.0,
-      "tp": 998,
+      "tp": 1000,
       "fp": 0,
       "tn": 10000,
-      "fn": 2
+      "fn": 0
     },
     "ensemble": {
-      "accuracy": 0.9998181818181818,
+      "accuracy": 0.9997272727272727,
       "precision": 1.0,
-      "recall": 0.998,
-      "f1": 0.998998998998999,
+      "recall": 0.997,
+      "f1": 0.99849774661993,
       "auc": 1.0,
-      "tp": 998,
+      "tp": 997,
       "fp": 0,
       "tn": 10000,
-      "fn": 2
+      "fn": 3
     }
   },
   "baselines": {

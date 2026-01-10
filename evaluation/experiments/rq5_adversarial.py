@@ -71,7 +71,7 @@ def train_model(model, domains: List[str], labels: List[int], epochs: int = 5, u
     for epoch in range(epochs):
         optimizer.zero_grad()
         outputs = model(X)
-        loss = criterion(outputs, y)
+        loss = criterion(outputs, y.squeeze(1))
         loss.backward()
         
         if use_poison:

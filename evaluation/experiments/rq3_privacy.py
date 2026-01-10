@@ -55,7 +55,7 @@ def train_with_dp_noise(model, domains: List[str], labels: List[int], epsilon: f
     for epoch in range(epochs):
         optimizer.zero_grad()
         outputs = model(X)
-        loss = criterion(outputs, y)
+        loss = criterion(outputs, y.squeeze(1))
         loss.backward()
         
         for param in model.parameters():

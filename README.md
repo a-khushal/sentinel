@@ -587,6 +587,13 @@ python evaluation/experiments/rq5_adversarial.py
 # Results saved to: evaluation/results/rq5_adversarial.json
 ```
 
+**Run All Experiments:**
+```bash
+source .venv/bin/activate
+python evaluation/run_all_experiments.py
+# Runs RQ1-RQ5 sequentially, saves all results
+```
+
 **Quick CTU-13 Test:**
 ```bash
 source .venv/bin/activate

@@ -55,7 +55,7 @@ def train_centralized(model, domains: List[str], labels: List[int], epochs: int 
     for epoch in range(epochs):
         optimizer.zero_grad()
         outputs = model(X)
-        loss = criterion(outputs, y)
+        loss = criterion(outputs, y.squeeze(1))
         loss.backward()
         optimizer.step()
     

@@ -1,0 +1,25 @@
+{
+  "experiment": "RQ2_Federated_vs_Centralized",
+  "timestamp": "2026-01-10T12:57:29.578580",
+  "centralized": {
+    "accuracy": 0.5454545454545454,
+    "precision": 0,
+    "recall": 0.0,
+    "f1": 0,
+    "auc": 0.001,
+    "training_time": 1.6680426597595215
+  },
+  "federated": {
+    "accuracy": 0.5454545454545454,
+    "precision": 0,
+    "recall": 0.0,
+    "f1": 0,
+    "auc": 0.193,
+    "training_time": 3.3047802448272705
+  },
+  "comparison": {
+    "accuracy_drop": 0,
+    "time_overhead": 1.636737585067749,
+    "relative_drop": 0
+  }
+}

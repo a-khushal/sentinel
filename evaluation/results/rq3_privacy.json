@@ -1,0 +1,70 @@
+{
+  "experiment": "RQ3_Privacy_Utility_Tradeoff",
+  "timestamp": "2026-01-10T12:57:58.575053",
+  "results": {
+    "baseline": {
+      "accuracy": 0.5454545454545454,
+      "precision": 0,
+      "recall": 0.0,
+      "f1": 0,
+      "auc": 0.0
+    },
+    "epsilon_0.1": {
+      "accuracy": 0.5454545454545454,
+      "precision": 0,
+      "recall": 0.0,
+      "f1": 0,
+      "auc": 0.206,
+      "privacy_budget": 0.1
+    },
+    "epsilon_0.5": {
+      "accuracy": 0.5454545454545454,
+      "precision": 0,
+      "recall": 0.0,
+      "f1": 0,
+      "auc": 0.32,
+      "privacy_budget": 0.5
+    },
+    "epsilon_1.0": {
+      "accuracy": 0.5454545454545454,
+      "precision": 0,
+      "recall": 0.0,
+      "f1": 0,
+      "auc": 0.0,
+      "privacy_budget": 1.0
+    },
+    "epsilon_2.0": {
+      "accuracy": 0.45454545454545453,
+      "precision": 0.45454545454545453,
+      "recall": 1.0,
+      "f1": 0.625,
+      "auc": 0.978,
+      "privacy_budget": 2.0
+    },
+    "epsilon_5.0": {
+      "accuracy": 0.9840909090909091,
+      "precision": 1.0,
+      "recall": 0.965,
+      "f1": 0.9821882951653944,
+      "auc": 1.0,
+      "privacy_budget": 5.0
+    },
+    "epsilon_10.0": {
+      "accuracy": 0.5454545454545454,
+      "precision": 0,
+      "recall": 0.0,
+      "f1": 0,
+      "auc": 0.0,
+      "privacy_budget": 10.0
+    }
+  },
+  "epsilon_values": [
+    0.1,
+    0.5,
+    1.0,
+    2.0,
+    5.0,
+    10.0
+  ],
+  "baseline_f1": 0
+}
