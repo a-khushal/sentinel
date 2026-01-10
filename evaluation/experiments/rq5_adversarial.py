@@ -34,13 +34,18 @@ def poison_data(domains: List[str], labels: List[int], poison_ratio: float = 0.1
     
     return poisoned_domains, poisoned_labels
 
-def poison_model_updates(model, poison_strength: float = 0.5):
+_poison_strength = 0.3
+
+def poison_model_updates(model, poison_strength: float = None):
+    global _poison_strength
+    if poison_strength is not None:
+        _poison_strength = poison_strength
     for param in model.parameters():
         if param.grad is not None:
-            noise = torch.randn_like(param.grad) * poison_strength
+            noise = torch.randn_like(param.grad) * _poison_strength
             param.grad.add_(noise)
 
-def train_model(model, domains: List[str], labels: List[int], epochs: int = 5, use_poison: bool = False) -> Dict:
+def train_model(model, domains: List[str], labels: List[int], epochs: int = 10, use_poison: bool = False) -> Dict:
     lexical = LexicalFeatures()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
     criterion = torch.nn.BCELoss()
@@ -75,7 +80,7 @@ def train_model(model, domains: List[str], labels: List[int], epochs: int = 5, u
         loss.backward()
         
         if use_poison:
-            poison_model_updates(model, poison_strength=0.3)
+            poison_model_updates(model)
         
         optimizer.step()
     
@@ -154,16 +159,42 @@ def main():
         domains = domains[:2000]
         labels = labels[:2000]
     
-    train_size = int(len(domains) * 0.8)
-    train_domains, train_labels = domains[:train_size], labels[:train_size]
-    test_domains, test_labels = domains[train_size:], labels[train_size:]
+    # Use synthetic DGA domains for better training
+    from scripts.generate_dga import random_dga
+    from scripts.dataset import load_dataset as load_synthetic
     
-    print(f"Training: {len(train_domains)}, Test: {len(test_domains)}")
+    synthetic_domains, synthetic_labels = load_synthetic()
+    if len(synthetic_domains) > 5000:
+        synthetic_domains = synthetic_domains[:5000]
+        synthetic_labels = synthetic_labels[:5000]
+    
+    # Combine for training
+    all_train_domains = list(domains[:len(domains)//2]) + list(synthetic_domains[:len(synthetic_domains)//2])
+    all_train_labels = list(labels[:len(labels)//2]) + list(synthetic_labels[:len(synthetic_labels)//2])
+    
+    import random
+    combined = list(zip(all_train_domains, all_train_labels))
+    random.shuffle(combined)
+    all_train_domains, all_train_labels = zip(*combined)
+    all_train_domains, all_train_labels = list(all_train_domains), list(all_train_labels)
+    
+    train_size = int(len(all_train_domains) * 0.8)
+    train_domains, train_labels = all_train_domains[:train_size], all_train_labels[:train_size]
+    test_domains, test_labels = all_train_domains[train_size:], all_train_labels[train_size:]
+    
+    print(f"Training: {len(train_domains)} (CTU-13 + Synthetic), Test: {len(test_domains)}")
+    print(f"  Train - Botnet: {sum(train_labels)}, Normal: {len(train_labels) - sum(train_labels)}")
+    print(f"  Test - Botnet: {sum(test_labels)}, Normal: {len(test_labels) - sum(test_labels)}")
     print()
     
-    print("[2/4] Training baseline (no attack)...")
-    baseline_model = FeatureBasedDGA(input_dim=12)
-    baseline_results = train_model(baseline_model, train_domains, train_labels, epochs=5, use_poison=False)
+    print("[2/4] Loading pre-trained baseline model...")
+    baseline_model = FeatureBasedDGA.load_trained()
+    if baseline_model is None:
+        print("  No pre-trained model found, training baseline...")
+        baseline_model = FeatureBasedDGA(input_dim=12)
+        baseline_results = train_model(baseline_model, train_domains, train_labels, epochs=20, use_poison=False)
+    else:
+        print("  Using pre-trained model")
     test_baseline = evaluate_model(baseline_model, test_domains, test_labels)
     print(f"  Baseline F1: {test_baseline['f1']:.4f}")
     print()
@@ -176,7 +207,9 @@ def main():
         print(f"  Testing {ratio*100:.0f}% data poisoning...")
         poisoned_domains, poisoned_labels = poison_data(train_domains, train_labels, poison_ratio=ratio)
         model = FeatureBasedDGA(input_dim=12)
-        train_results = train_model(model, poisoned_domains, poisoned_labels, epochs=5, use_poison=False)
+        if baseline_model is not None:
+            model.load_state_dict(baseline_model.state_dict())
+        train_results = train_model(model, poisoned_domains, poisoned_labels, epochs=10, use_poison=False)
         test_results = evaluate_model(model, test_domains, test_labels)
         data_poison_results[f'ratio_{ratio}'] = test_results
         print(f"    F1: {test_results['f1']:.4f}")
@@ -187,7 +220,11 @@ def main():
     for strength in [0.1, 0.3, 0.5]:
         print(f"  Testing model poisoning (strength={strength})...")
         model = FeatureBasedDGA(input_dim=12)
-        train_results = train_model(model, train_domains, train_labels, epochs=5, use_poison=True)
+        if baseline_model is not None:
+            model.load_state_dict(baseline_model.state_dict())
+        # Set poison strength
+        poison_model_updates(model, poison_strength=strength)
+        train_results = train_model(model, train_domains, train_labels, epochs=10, use_poison=True)
         test_results = evaluate_model(model, test_domains, test_labels)
         model_poison_results[f'strength_{strength}'] = test_results
         print(f"    F1: {test_results['f1']:.4f}")

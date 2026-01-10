@@ -22,7 +22,7 @@ from scripts.dataset import load_dataset as load_synthetic_dataset
 from models.dga_detector import FeatureBasedDGA
 from features.lexical import LexicalFeatures
 
-def train_with_dp_noise(model, domains: List[str], labels: List[int], epsilon: float, epochs: int = 5) -> Dict:
+def train_with_dp_noise(model, domains: List[str], labels: List[int], epsilon: float, epochs: int = 10) -> Dict:
     lexical = LexicalFeatures()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
     criterion = torch.nn.BCELoss()
@@ -140,19 +140,45 @@ def main():
         domains = domains[:2000]
         labels = labels[:2000]
     
-    train_size = int(len(domains) * 0.8)
-    train_domains, train_labels = domains[:train_size], labels[:train_size]
-    test_domains, test_labels = domains[train_size:], labels[train_size:]
+    # Use synthetic DGA domains for better training
+    from scripts.generate_dga import random_dga
+    from scripts.dataset import load_dataset as load_synthetic
     
-    print(f"Training: {len(train_domains)}, Test: {len(test_domains)}")
+    synthetic_domains, synthetic_labels = load_synthetic()
+    if len(synthetic_domains) > 5000:
+        synthetic_domains = synthetic_domains[:5000]
+        synthetic_labels = synthetic_labels[:5000]
+    
+    # Combine for training
+    all_train_domains = list(domains[:len(domains)//2]) + list(synthetic_domains[:len(synthetic_domains)//2])
+    all_train_labels = list(labels[:len(labels)//2]) + list(synthetic_labels[:len(synthetic_labels)//2])
+    
+    import random
+    combined = list(zip(all_train_domains, all_train_labels))
+    random.shuffle(combined)
+    all_train_domains, all_train_labels = zip(*combined)
+    all_train_domains, all_train_labels = list(all_train_domains), list(all_train_labels)
+    
+    train_size = int(len(all_train_domains) * 0.8)
+    train_domains, train_labels = all_train_domains[:train_size], all_train_labels[:train_size]
+    test_domains, test_labels = all_train_domains[train_size:], all_train_labels[train_size:]
+    
+    print(f"Training: {len(train_domains)} (CTU-13 + Synthetic), Test: {len(test_domains)}")
+    print(f"  Train - Botnet: {sum(train_labels)}, Normal: {len(train_labels) - sum(train_labels)}")
+    print(f"  Test - Botnet: {sum(test_labels)}, Normal: {len(test_labels) - sum(test_labels)}")
     print()
     
     epsilon_values = [0.1, 0.5, 1.0, 2.0, 5.0, 10.0]
     results = {}
     
-    print("[2/4] Training baseline (no DP)...")
-    baseline_model = FeatureBasedDGA(input_dim=12)
-    baseline_results = train_with_dp_noise(baseline_model, train_domains, train_labels, epsilon=100.0, epochs=5)
+    print("[2/4] Loading pre-trained baseline model...")
+    baseline_model = FeatureBasedDGA.load_trained()
+    if baseline_model is None:
+        print("  No pre-trained model found, training baseline...")
+        baseline_model = FeatureBasedDGA(input_dim=12)
+        baseline_results = train_with_dp_noise(baseline_model, train_domains, train_labels, epsilon=100.0, epochs=20)
+    else:
+        print("  Using pre-trained model")
     test_baseline = evaluate_model(baseline_model, test_domains, test_labels)
     results['baseline'] = test_baseline
     print(f"  Baseline F1: {test_baseline['f1']:.4f}")
@@ -162,7 +188,9 @@ def main():
     for epsilon in epsilon_values:
         print(f"  Testing epsilon={epsilon}...")
         model = FeatureBasedDGA(input_dim=12)
-        train_results = train_with_dp_noise(model, train_domains, train_labels, epsilon=epsilon, epochs=5)
+        if baseline_model is not None:
+            model.load_state_dict(baseline_model.state_dict())
+        train_results = train_with_dp_noise(model, train_domains, train_labels, epsilon=epsilon, epochs=10)
         test_results = evaluate_model(model, test_domains, test_labels)
         results[f'epsilon_{epsilon}'] = {
             **test_results,

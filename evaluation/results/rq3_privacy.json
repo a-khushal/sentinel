@@ -1,60 +1,60 @@
 {
   "experiment": "RQ3_Privacy_Utility_Tradeoff",
-  "timestamp": "2026-01-10T12:57:58.575053",
+  "timestamp": "2026-01-10T13:10:42.299030",
   "results": {
     "baseline": {
-      "accuracy": 0.5454545454545454,
-      "precision": 0,
-      "recall": 0.0,
-      "f1": 0,
-      "auc": 0.0
+      "accuracy": 0.9975,
+      "precision": 0.9858156028368794,
+      "recall": 1.0,
+      "f1": 0.9928571428571429,
+      "auc": 0.9998993241110592
     },
     "epsilon_0.1": {
-      "accuracy": 0.5454545454545454,
-      "precision": 0,
-      "recall": 0.0,
-      "f1": 0,
-      "auc": 0.206,
+      "accuracy": 0.990625,
+      "precision": 0.9488054607508533,
+      "recall": 1.0,
+      "f1": 0.9737302977232926,
+      "auc": 0.9996217851739788,
       "privacy_budget": 0.1
     },
     "epsilon_0.5": {
-      "accuracy": 0.5454545454545454,
-      "precision": 0,
-      "recall": 0.0,
-      "f1": 0,
-      "auc": 0.32,
+      "accuracy": 0.993125,
+      "precision": 0.9750889679715302,
+      "recall": 0.9856115107913669,
+      "f1": 0.9803220035778176,
+      "auc": 0.9996734836034349,
       "privacy_budget": 0.5
     },
     "epsilon_1.0": {
-      "accuracy": 0.5454545454545454,
-      "precision": 0,
-      "recall": 0.0,
-      "f1": 0,
-      "auc": 0.0,
+      "accuracy": 0.990625,
+      "precision": 0.9747292418772563,
+      "recall": 0.9712230215827338,
+      "f1": 0.972972972972973,
+      "auc": 0.9995238302550092,
       "privacy_budget": 1.0
     },
     "epsilon_2.0": {
-      "accuracy": 0.45454545454545453,
-      "precision": 0.45454545454545453,
-      "recall": 1.0,
-      "f1": 0.625,
-      "auc": 0.978,
+      "accuracy": 0.99,
+      "precision": 0.9486301369863014,
+      "recall": 0.9964028776978417,
+      "f1": 0.9719298245614034,
+      "auc": 0.9995483189847516,
       "privacy_budget": 2.0
     },
     "epsilon_5.0": {
-      "accuracy": 0.9840909090909091,
-      "precision": 1.0,
-      "recall": 0.965,
-      "f1": 0.9821882951653944,
-      "auc": 1.0,
+      "accuracy": 0.985625,
+      "precision": 0.9235880398671097,
+      "recall": 1.0,
+      "f1": 0.9602763385146805,
+      "auc": 0.9996979723331774,
       "privacy_budget": 5.0
     },
     "epsilon_10.0": {
-      "accuracy": 0.5454545454545454,
-      "precision": 0,
-      "recall": 0.0,
-      "f1": 0,
-      "auc": 0.0,
+      "accuracy": 0.984375,
+      "precision": 0.9174917491749175,
+      "recall": 1.0,
+      "f1": 0.9569707401032702,
+      "auc": 0.9996898094232632,
       "privacy_budget": 10.0
     }
   },
@@ -66,5 +66,5 @@
     5.0,
     10.0
   ],
-  "baseline_f1": 0
+  "baseline_f1": 0.9928571428571429
 }

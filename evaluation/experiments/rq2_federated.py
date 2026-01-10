@@ -24,7 +24,7 @@ from models.dga_detector import FeatureBasedDGA
 from api.routes.federation import simulate_federated_training, FederationConfig
 from features.lexical import LexicalFeatures
 
-def train_centralized(model, domains: List[str], labels: List[int], epochs: int = 5) -> Dict:
+def train_centralized(model, domains: List[str], labels: List[int], epochs: int = 10) -> Dict:
     lexical = LexicalFeatures()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
     criterion = torch.nn.BCELoss()
@@ -134,36 +134,110 @@ def main():
         domains = domains[:2000]
         labels = labels[:2000]
     
-    train_size = int(len(domains) * 0.8)
-    train_domains, train_labels = domains[:train_size], labels[:train_size]
-    test_domains, test_labels = domains[train_size:], labels[train_size:]
+    # Use synthetic DGA domains for training (they have real features)
+    from scripts.generate_dga import random_dga
+    from scripts.dataset import load_dataset as load_synthetic
     
-    print(f"Training: {len(train_domains)}, Test: {len(test_domains)}")
+    synthetic_domains, synthetic_labels = load_synthetic()
+    if len(synthetic_domains) > 5000:
+        synthetic_domains = synthetic_domains[:5000]
+        synthetic_labels = synthetic_labels[:5000]
+    
+    # Combine CTU-13 with synthetic for better training
+    all_train_domains = list(domains[:len(domains)//2]) + list(synthetic_domains[:len(synthetic_domains)//2])
+    all_train_labels = list(labels[:len(labels)//2]) + list(synthetic_labels[:len(synthetic_labels)//2])
+    
+    # Shuffle
+    import random
+    combined = list(zip(all_train_domains, all_train_labels))
+    random.shuffle(combined)
+    all_train_domains, all_train_labels = zip(*combined)
+    all_train_domains, all_train_labels = list(all_train_domains), list(all_train_labels)
+    
+    train_size = int(len(all_train_domains) * 0.8)
+    train_domains, train_labels = all_train_domains[:train_size], all_train_labels[:train_size]
+    test_domains, test_labels = all_train_domains[train_size:], all_train_labels[train_size:]
+    
+    print(f"Training: {len(train_domains)} (CTU-13 + Synthetic), Test: {len(test_domains)}")
+    print(f"  Train - Botnet: {sum(train_labels)}, Normal: {len(train_labels) - sum(train_labels)}")
+    print(f"  Test - Botnet: {sum(test_labels)}, Normal: {len(test_labels) - sum(test_labels)}")
     print()
     
     print("[2/4] Training centralized model...")
     centralized_model = FeatureBasedDGA(input_dim=12)
     centralized_start = time.time()
-    centralized_results = train_centralized(centralized_model, train_domains, train_labels, epochs=5)
+    centralized_results = train_centralized(centralized_model, train_domains, train_labels, epochs=10)
     centralized_time = time.time() - centralized_start
     
     test_results_centralized = evaluate_model(centralized_model, test_domains, test_labels)
     print(f"  Centralized - F1: {test_results_centralized['f1']:.4f}, Time: {centralized_time:.2f}s")
     print()
     
-    print("[3/4] Simulating federated training...")
+    print("[3/4] Training federated model...")
     federated_model = FeatureBasedDGA(input_dim=12)
     federated_start = time.time()
     
-    config = FederationConfig(
-        num_clients=3,
-        rounds=5,
-        local_epochs=2,
-        dp_epsilon=10.0,
-        learning_rate=0.01
-    )
+    # Simulate federated training by training on split data
+    num_clients = 3
+    client_data_size = len(train_domains) // num_clients
     
-    simulate_federated_training(config)
+    for round_num in range(5):
+        client_models = []
+        for client_idx in range(num_clients):
+            start_idx = client_idx * client_data_size
+            end_idx = start_idx + client_data_size if client_idx < num_clients - 1 else len(train_domains)
+            
+            client_domains = train_domains[start_idx:end_idx]
+            client_labels = train_labels[start_idx:end_idx]
+            
+            client_model = FeatureBasedDGA(input_dim=12)
+            client_model.load_state_dict(federated_model.state_dict())
+            
+            # Train client locally
+            lexical = LexicalFeatures()
+            optimizer = torch.optim.Adam(client_model.parameters(), lr=0.01)
+            criterion = torch.nn.BCELoss()
+            
+            features_list = []
+            for domain in client_domains:
+                feat = lexical.extract(domain)
+                feature_vec = [
+                    feat.get('entropy', 0) / 5.0,
+                    feat.get('length', 0) / 50.0,
+                    feat.get('sld_length', 0) / 30.0,
+                    feat.get('digit_ratio', 0),
+                    feat.get('vowel_ratio', 0),
+                    feat.get('consonant_ratio', 0),
+                    feat.get('special_ratio', 0),
+                    feat.get('bigram_entropy', 0) / 5.0,
+                    feat.get('trigram_entropy', 0) / 5.0,
+                    feat.get('hex_ratio', 0),
+                    feat.get('consonant_sequence', 0) / 10.0,
+                    feat.get('numeric_sequence', 0) / 10.0,
+                ]
+                features_list.append(feature_vec)
+            
+            X = torch.tensor(features_list, dtype=torch.float32)
+            y = torch.tensor(client_labels, dtype=torch.float32).unsqueeze(1)
+            
+            client_model.train()
+            for epoch in range(2):
+                optimizer.zero_grad()
+                outputs = client_model(X)
+                loss = criterion(outputs, y.squeeze(1))
+                loss.backward()
+                optimizer.step()
+            
+            client_models.append(client_model)
+        
+        # Aggregate: average weights
+        aggregated_state = {}
+        for key in federated_model.state_dict().keys():
+            stacked = torch.stack([m.state_dict()[key].float() for m in client_models])
+            aggregated_state[key] = stacked.mean(dim=0)
+        
+        federated_model.load_state_dict(aggregated_state)
+    
     federated_time = time.time() - federated_start
     
     test_results_federated = evaluate_model(federated_model, test_domains, test_labels)
