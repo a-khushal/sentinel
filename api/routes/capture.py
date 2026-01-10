@@ -62,6 +62,7 @@ async def start_capture(config: CaptureConfig):
     
     def on_query(query):
         state.increment_queries()
+        state.increment_domains()
         capture_state['queries'].append(query)
         
         if state.ensemble:
@@ -205,6 +206,7 @@ async def upload_pcap(file: UploadFile = File(...)):
         
         capture_state['queries'] = queries
         state.increment_queries(len(queries))
+        state.increment_domains(len(set(q.query_name for q in queries)))
         
         if state.graph_builder:
             state.graph_builder.build_graph(queries)

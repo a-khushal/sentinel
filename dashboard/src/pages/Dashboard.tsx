@@ -17,10 +17,21 @@ interface ThreatSummary {
   reported_to_blockchain: number
 }
 
+interface Threat {
+  id: string
+  domain: string
+  threat_type: string
+  confidence: number
+  timestamp: string
+  reported_to_blockchain: boolean
+  tx_hash?: string
+}
+
 export default function Dashboard() {
   const { dark } = useContext(ThemeContext)
   const { data: stats } = useApi<Stats>('/stats', 2000)
   const { data: threatSummary } = useApi<ThreatSummary>('/threats/stats/summary', 5000)
+  const { data: recentThreats } = useApi<Threat[]>('/threats?limit=10', 3000)
 
   return (
     <div>
@@ -121,30 +132,49 @@ export default function Dashboard() {
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td className="font-mono text-xs">2s ago</td>
-              <td>DGA domain detected</td>
-              <td className="font-mono text-xs">xk7h2m9p.evil.com</td>
-              <td><span className="badge badge-red">Critical</span></td>
-            </tr>
-            <tr>
-              <td className="font-mono text-xs">15s ago</td>
-              <td>Threat reported to blockchain</td>
-              <td className="font-mono text-xs">malware.bad</td>
-              <td><span className="badge badge-green">Success</span></td>
-            </tr>
-            <tr>
-              <td className="font-mono text-xs">1m ago</td>
-              <td>New client connected</td>
-              <td className="font-mono text-xs">192.168.1.105</td>
-              <td><span className="badge badge-blue">Info</span></td>
-            </tr>
-            <tr>
-              <td className="font-mono text-xs">3m ago</td>
-              <td>C2 beacon pattern detected</td>
-              <td className="font-mono text-xs">c2server.net</td>
-              <td><span className="badge badge-red">Critical</span></td>
-            </tr>
+            {recentThreats && recentThreats.length > 0 ? (
+              recentThreats.slice(0, 10).map((threat) => {
+                const timeAgo = getTimeAgo(threat.timestamp)
+                const eventType = threat.reported_to_blockchain 
+                  ? 'Threat reported to blockchain'
+                  : threat.threat_type === 'dga' 
+                  ? 'DGA domain detected'
+                  : threat.threat_type === 'c2'
+                  ? 'C2 beacon pattern detected'
+                  : 'Threat detected'
+                
+                const status = threat.reported_to_blockchain 
+                  ? 'Success'
+                  : threat.confidence > 0.8
+                  ? 'Critical'
+                  : threat.confidence > 0.5
+                  ? 'Warning'
+                  : 'Info'
+                
+                const badgeClass = threat.reported_to_blockchain
+                  ? 'badge-green'
+                  : threat.confidence > 0.8
+                  ? 'badge-red'
+                  : threat.confidence > 0.5
+                  ? 'badge-yellow'
+                  : 'badge-blue'
+                
+                return (
+                  <tr key={threat.id}>
+                    <td className="font-mono text-xs">{timeAgo}</td>
+                    <td>{eventType}</td>
+                    <td className="font-mono text-xs">{threat.domain}</td>
+                    <td><span className={`badge ${badgeClass}`}>{status}</span></td>
+                  </tr>
+                )
+              })
+            ) : (
+              <tr>
+                <td colSpan={4} className={`text-center py-8 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>
+                  No recent activity
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -190,4 +220,23 @@ function StatusRow({ label, active, dark }: { label: string; active: boolean; da
       </div>
     </div>
   )
+}
+
+function getTimeAgo(timestamp: string): string {
+  try {
+    const date = new Date(timestamp)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffSec = Math.floor(diffMs / 1000)
+    const diffMin = Math.floor(diffSec / 60)
+    const diffHour = Math.floor(diffMin / 60)
+    const diffDay = Math.floor(diffHour / 24)
+    
+    if (diffSec < 60) return `${diffSec}s ago`
+    if (diffMin < 60) return `${diffMin}m ago`
+    if (diffHour < 24) return `${diffHour}h ago`
+    return `${diffDay}d ago`
+  } catch {
+    return 'Unknown'
+  }
 }

@@ -68,8 +68,23 @@ async def analyze_domain(request: DomainAnalysisRequest):
     if not state.ensemble:
         raise HTTPException(status_code=503, detail="Detection engine not initialized")
     
-    result = state.ensemble.analyze_domain(request.domain)
     state.increment_domains()
+    result = state.ensemble.analyze_domain(request.domain)
+    
+    if result['is_suspicious']:
+        import uuid
+        threat = {
+            'id': str(uuid.uuid4()),
+            'domain': request.domain,
+            'threat_type': result.get('threat_type', 'unknown'),
+            'confidence': result['confidence'],
+            'dga_score': result['dga_score'],
+            'gnn_score': 0.0,
+            'timestamp': datetime.now().isoformat(),
+            'src_ip': 'manual',
+            'reported_to_blockchain': False
+        }
+        state.add_threat(threat)
     
     return DomainAnalysisResponse(
         domain=result['domain'],
