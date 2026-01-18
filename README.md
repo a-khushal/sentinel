@@ -479,164 +479,95 @@ sentinel/
 
 ## Setup & Run
 
+### 1. Install Dependencies
+
 ```bash
-# 1. Install dependencies
+# Python backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 pip install torch torch-geometric flwr opacus
 
-# 2. Install frontend dependencies
+# Frontend
 cd dashboard && npm install && cd ..
 
-# 3. Verify model weights exist (required for ML detection)
-ls models/weights/*.pt
-# If missing, train models:
-python scripts/train_dga.py
-python scripts/train_tdgnn.py
+# Blockchain (optional)
+cd blockchain && npm install && cd ..
+```
 
-# 4. Start backend (Terminal 1)
+### 2. Train Models (if weights missing)
+
+```bash
+source .venv/bin/activate
+
+# Check if weights exist
+ls models/weights/*.pt
+
+# If missing, train:
+python scripts/generate_dga.py          # Generate DGA training data
+python scripts/train_dga.py             # Train DGA detector
+python scripts/generate_graph_data.py   # Generate graph training data
+python scripts/train_tdgnn.py           # Train T-DGNN
+```
+
+### 3. Setup Blockchain (Optional)
+
+```bash
+cd blockchain
+
+# Create .env file
+echo "SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY" > .env
+echo "PRIVATE_KEY=your_wallet_private_key" >> .env
+
+# Deploy contracts to Sepolia testnet
+npm run deploy:sepolia
+
+# Contracts deployed:
+# - ThreatLedger: 0xb5430433ba52d853F667BC735fc453e389855E64
+# - FederatedGovernance: 0xB560339aC4985bAea1764811D8cD4ed46A96C477
+```
+
+### 4. Run Application
+
+**Terminal 1 - Backend:**
+```bash
 source .venv/bin/activate
 export PRIVATE_KEY=your_key           # optional, for blockchain
 export SEPOLIA_RPC_URL=your_rpc       # optional, for blockchain
 python -m uvicorn api.main:app --port 8000
+```
 
-# 5. Start frontend (Terminal 2)
+**Terminal 2 - Frontend:**
+```bash
 cd dashboard && npm run dev
+```
 
-# 6. Test detection (Terminal 3)
+**Terminal 3 - Test Detection:**
+```bash
 source .venv/bin/activate
 python scripts/test_threats.py
-# Open http://localhost:3000/threats to see results
 ```
 
 **Access:**
 - Dashboard: http://localhost:3000
 - API Docs: http://localhost:8000/docs
 
-**Note:** Model weights (`models/weights/*.pt`) are required for ML detection. Without them, the system falls back to heuristic-only mode (reduced accuracy).
+### 5. Run Evaluation Experiments
 
-### Training Models
-
-**Important:** Model weights are required for ML-based detection. The system will work without them but with reduced accuracy (heuristic-only mode).
-
-**Train DGA Detector:**
 ```bash
 source .venv/bin/activate
 
-# Step 1: Generate training data (if needed)
-python scripts/generate_dga.py
+# Individual experiments
+python evaluation/experiments/rq1_detection.py      # Detection accuracy
+python evaluation/experiments/rq2_federated.py     # Federated vs centralized
+python evaluation/experiments/rq3_privacy.py       # Privacy-utility trade-off
+python evaluation/experiments/rq4_blockchain.py     # Blockchain performance
+python evaluation/experiments/rq5_adversarial.py   # Adversarial robustness
 
-# Step 2: Train model
-python scripts/train_dga.py
-
-# Expected output:
-#   Training DGA Detector...
-#   Epoch 1/10: Loss=0.xxx, Acc=0.xxx
-#   ...
-#   Model saved to models/weights/dga_classifier.pt
-#   Test Accuracy: 0.986, F1: 0.985
-
-# Step 3: Verify weights saved
-ls -lh models/weights/dga_classifier.pt
-```
-
-**Train T-DGNN:**
-```bash
-source .venv/bin/activate
-
-# Step 1: Generate graph training data (if needed)
-python scripts/generate_graph_data.py
-
-# Step 2: Train model
-python scripts/train_tdgnn.py
-
-# Expected output:
-#   Training T-DGNN...
-#   Epoch 1/10: Loss=0.xxx, Node Acc=0.xxx, Graph Acc=0.xxx
-#   ...
-#   Model saved to models/weights/tdgnn.pt
-#   Test Node Accuracy: 0.933, Graph Accuracy: 0.933
-
-# Step 3: Verify weights saved
-ls -lh models/weights/tdgnn.pt
-```
-
-**Verify Both Models Trained:**
-```bash
-# Check all required files exist
-ls -lh models/weights/
-# Should see:
-#   dga_classifier.pt      (~50KB)
-#   tdgnn.pt              (~200KB)
-#   dga_results.json      (evaluation metrics)
-#   tdgnn_results.json    (evaluation metrics)
-```
-
-**Generate Training Data:**
-```bash
-# Generate DGA domains for training
-python scripts/generate_dga.py
-
-# Generate graph data for T-DGNN training
-python scripts/generate_graph_data.py
-```
-
-### Evaluation Experiments
-
-**RQ1: Detection Accuracy (T-DGNN vs Baselines)**
-```bash
-source .venv/bin/activate
-python evaluation/experiments/rq1_detection.py
-# Results saved to: evaluation/results/rq1_detection.json
-```
-
-**RQ2: Federated vs Centralized Training**
-```bash
-source .venv/bin/activate
-python evaluation/experiments/rq2_federated.py
-# Results saved to: evaluation/results/rq2_federated.json
-```
-
-**RQ3: Privacy-Utility Trade-off**
-```bash
-source .venv/bin/activate
-python evaluation/experiments/rq3_privacy.py
-# Results saved to: evaluation/results/rq3_privacy.json
-```
-
-**RQ4: Blockchain Performance**
-```bash
-source .venv/bin/activate
-python evaluation/experiments/rq4_blockchain.py
-# Results saved to: evaluation/results/rq4_blockchain.json
-```
-
-**RQ5: Adversarial Robustness**
-```bash
-source .venv/bin/activate
-python evaluation/experiments/rq5_adversarial.py
-# Results saved to: evaluation/results/rq5_adversarial.json
-```
-
-**Run All Experiments:**
-```bash
-source .venv/bin/activate
+# Or run all at once
 python evaluation/run_all_experiments.py
-# Runs RQ1-RQ5 sequentially, saves all results
 ```
 
-**Quick CTU-13 Test:**
-```bash
-source .venv/bin/activate
-python scripts/evaluate_ctu13.py
-```
-
-**Demo Script:**
-```bash
-source .venv/bin/activate
-python scripts/demo.py
-```
 
 ---
 
