@@ -477,152 +477,44 @@ sentinel/
 
 ---
 
-## Quick Start
+## Setup & Run
 
-**For first-time setup:**
 ```bash
-# 1. Clone and setup
-git clone <repo>
-cd sentinel
+# 1. Install dependencies
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 pip install torch torch-geometric flwr opacus
 
-# 2. Verify model weights exist (they should be in the repo)
-ls models/weights/*.pt
-# If missing, train them:
-python scripts/train_dga.py
-python scripts/train_tdgnn.py
-
-# 3. Start backend
-python -m uvicorn api.main:app --port 8000
-
-# 4. Start frontend (in another terminal)
-cd dashboard && npm install && npm run dev
-
-# 5. Test detection
-python scripts/test_threats.py
-# Open http://localhost:3000/threats to see results
-```
-
----
-
-## Setup
-
-```bash
-# 1. Python environment
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
-# 2. ML dependencies (required for ML detection)
-pip install torch --index-url https://download.pytorch.org/whl/cpu
-pip install torch-geometric flwr opacus
-
-# 3. Verify model weights exist
-ls -lh models/weights/*.pt
-# Expected files:
-#   - models/weights/dga_classifier.pt (DGA detector)
-#   - models/weights/tdgnn.pt (T-DGNN graph model)
-#   - models/weights/dga_results.json (evaluation metrics)
-#   - models/weights/tdgnn_results.json (evaluation metrics)
-
-# If weights are missing, train models (see "Training Models" section below)
-
-# 4. Dashboard
+# 2. Install frontend dependencies
 cd dashboard && npm install && cd ..
 
-# 5. Blockchain (optional - needs Sepolia ETH)
-cd blockchain && npm install
-echo "SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY" > .env
-echo "PRIVATE_KEY=your_wallet_private_key" >> .env
-npm run deploy:sepolia
-```
-
----
-
-## Run
-
-### Step 1: Verify Model Weights
-
-Before running the application, ensure model weights are present:
-
-```bash
-# Check if model weights exist
-ls models/weights/dga_classifier.pt models/weights/tdgnn.pt
-
-# If missing, you'll see errors. Train models first:
+# 3. Verify model weights exist (required for ML detection)
+ls models/weights/*.pt
+# If missing, train models:
 python scripts/train_dga.py
 python scripts/train_tdgnn.py
-```
 
-**Model Loading Behavior:**
-- If weights exist: Models auto-load on startup (check logs for "Models loaded")
-- If weights missing: System falls back to heuristic-only detection (reduced accuracy)
-- Models are loaded from: `models/weights/dga_classifier.pt` and `models/weights/tdgnn.pt`
-
-### Step 2: Start Backend
-
-**Terminal 1 - Backend:**
-```bash
-cd /home/a-khushal/Desktop/CoE/sentinel
+# 4. Start backend (Terminal 1)
 source .venv/bin/activate
-
-# Verify models will load
-python -c "from models.dga_detector import FeatureBasedDGA; from models.tdgnn import TrainedTDGNN; print('DGA:', 'OK' if FeatureBasedDGA.load_trained() else 'MISSING'); print('T-DGNN:', 'OK' if TrainedTDGNN.load_trained() else 'MISSING')"
-
-# Start backend
 export PRIVATE_KEY=your_key           # optional, for blockchain
 export SEPOLIA_RPC_URL=your_rpc       # optional, for blockchain
 python -m uvicorn api.main:app --port 8000
 
-# For live DNS capture (requires sudo):
-sudo .venv/bin/python -m uvicorn api.main:app --port 8000
-```
-
-**Expected Backend Output:**
-```
-INFO:     Started server process
-INFO:     Models loaded successfully
-INFO:     DGA Detector: ✓
-INFO:     T-DGNN: ✓
-INFO:     Uvicorn running on http://0.0.0.0:8000
-```
-
-### Step 3: Start Frontend
-
-**Terminal 2 - Frontend:**
-```bash
+# 5. Start frontend (Terminal 2)
 cd dashboard && npm run dev
+
+# 6. Test detection (Terminal 3)
+source .venv/bin/activate
+python scripts/test_threats.py
+# Open http://localhost:3000/threats to see results
 ```
 
 **Access:**
 - Dashboard: http://localhost:3000
 - API Docs: http://localhost:8000/docs
 
-### Step 4: Test Threat Detection
-
-**Option A: Use Test Script (Recommended)**
-```bash
-# In another terminal
-source .venv/bin/activate
-python scripts/test_threats.py
-# This injects test threats into the system
-# Check Threat Monitor at http://localhost:3000/threats
-```
-
-**Option B: Manual Domain Analysis**
-1. Go to http://localhost:3000/threats
-2. Click "Manual Analysis" dropdown
-3. Enter suspicious domain: `x7k9m2p4q8.evil.com`
-4. Click "Analyze Domain"
-
-**Option C: Live DNS Capture**
-1. Go to http://localhost:3000/graph
-2. Click "Start DNS Capture"
-3. Browse websites or wait for traffic
-4. Threats appear automatically in Threat Monitor
+**Note:** Model weights (`models/weights/*.pt`) are required for ML detection. Without them, the system falls back to heuristic-only mode (reduced accuracy).
 
 ### Training Models
 
