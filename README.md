@@ -512,12 +512,17 @@ python scripts/train_tdgnn.py           # Train T-DGNN
 
 ### 3. Setup Blockchain (Optional)
 
+**Required:** Create `.env` file in `blockchain/` folder with your keys:
+
 ```bash
 cd blockchain
 
-# Create .env file
-echo "SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY" > .env
-echo "PRIVATE_KEY=your_wallet_private_key" >> .env
+# Create .env file with your credentials
+cat > .env << EOF
+SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_ALCHEMY_KEY
+PRIVATE_KEY=your_wallet_private_key_without_0x_prefix
+ETHERSCAN_API_KEY=your_etherscan_api_key
+EOF
 
 # Deploy contracts to Sepolia testnet
 npm run deploy:sepolia
@@ -527,23 +532,35 @@ npm run deploy:sepolia
 # - FederatedGovernance: 0xB560339aC4985bAea1764811D8cD4ed46A96C477
 ```
 
+**Note:** The backend also needs `PRIVATE_KEY` and `SEPOLIA_RPC_URL` environment variables at runtime (see step 4).
+
 ### 4. Run Application
+
+**All commands run from project root (`sentinel/` folder):**
 
 **Terminal 1 - Backend:**
 ```bash
+cd sentinel                    # Navigate to project root
 source .venv/bin/activate
-export PRIVATE_KEY=your_key           # optional, for blockchain
-export SEPOLIA_RPC_URL=your_rpc       # optional, for blockchain
+
+# Set blockchain env vars (required if using blockchain features)
+export PRIVATE_KEY=your_wallet_private_key
+export SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY
+
+# Start backend (runs api/main.py)
 python -m uvicorn api.main:app --port 8000
 ```
 
+**Note:** If `PRIVATE_KEY` and `SEPOLIA_RPC_URL` are not set, the system uses a mock blockchain client (no real transactions).
+
 **Terminal 2 - Frontend:**
 ```bash
-cd dashboard && npm run dev
+cd sentinel/dashboard && npm run dev
 ```
 
 **Terminal 3 - Test Detection:**
 ```bash
+cd sentinel
 source .venv/bin/activate
 python scripts/test_threats.py
 ```
