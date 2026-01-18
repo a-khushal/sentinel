@@ -19,11 +19,9 @@ wheels/
 .installed.cfg
 *.egg
 
-*.pt
 *.pth
 *.onnx
 *.pkl
-models/weights/
 
 .env
 .env.local

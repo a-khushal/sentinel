@@ -52,56 +52,74 @@ export default function ThreatMonitor() {
         </p>
       </div>
 
-      <div className="card p-4 mb-6">
-        <h2 className="font-semibold mb-3">Analyze Domain</h2>
-        <div className="flex gap-3 mb-4">
-          <input
-            type="text"
-            value={searchDomain}
-            onChange={(e) => setSearchDomain(e.target.value)}
-            placeholder="Enter domain to analyze (e.g., suspicious-domain.com)"
-            className="flex-1"
-            onKeyDown={(e) => e.key === 'Enter' && analyzeDomain()}
-          />
-          <button onClick={analyzeDomain} disabled={analyzing} className="btn-primary">
-            {analyzing ? 'Analyzing...' : 'Analyze'}
-          </button>
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <p className={`text-sm ${dark ? 'text-gray-400' : 'text-gray-500'}`}>
+            Threats are automatically detected from DNS capture and PCAP uploads
+          </p>
         </div>
-
-        {analysisResult && (
-          <div className={`p-4 rounded ${
-            analysisResult.is_suspicious 
-              ? (dark ? 'bg-red-900/20 border border-red-800' : 'bg-red-50 border border-red-200')
-              : (dark ? 'bg-green-900/20 border border-green-800' : 'bg-green-50 border border-green-200')
+        <details className="relative">
+          <summary className={`cursor-pointer text-sm ${dark ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-800'}`}>
+            Manual Analysis
+          </summary>
+          <div className={`absolute right-0 mt-2 w-96 p-4 rounded-lg shadow-lg z-10 ${
+            dark ? 'bg-[#1a1a1a] border border-gray-700' : 'bg-white border border-gray-200'
           }`}>
-            <div className="flex items-center justify-between mb-3">
-              <span className="font-mono font-medium">{analysisResult.domain}</span>
-              <span className={`badge ${analysisResult.is_suspicious ? 'badge-red' : 'badge-green'}`}>
-                {analysisResult.is_suspicious ? 'Suspicious' : 'Clean'}
-              </span>
+            <h3 className="font-semibold mb-3">Analyze Domain</h3>
+            <div className="flex gap-2 mb-3">
+              <input
+                type="text"
+                value={searchDomain}
+                onChange={(e) => setSearchDomain(e.target.value)}
+                placeholder="Enter domain (e.g., suspicious-domain.com)"
+                className="flex-1 text-sm"
+                onKeyDown={(e) => e.key === 'Enter' && analyzeDomain()}
+              />
+              <button onClick={analyzeDomain} disabled={analyzing} className="btn-primary text-sm">
+                {analyzing ? '...' : 'Analyze'}
+              </button>
             </div>
-            <div className="grid grid-cols-3 gap-4 text-sm">
-              <div>
-                <div className={`text-xs ${dark ? 'text-gray-400' : 'text-gray-500'}`}>Confidence</div>
-                <div className="font-mono font-semibold">{(analysisResult.confidence * 100).toFixed(1)}%</div>
+            {analysisResult && (
+              <div className={`p-3 rounded text-sm ${
+                analysisResult.is_suspicious 
+                  ? (dark ? 'bg-red-900/20 border border-red-800' : 'bg-red-50 border border-red-200')
+                  : (dark ? 'bg-green-900/20 border border-green-800' : 'bg-green-50 border border-green-200')
+              }`}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-mono text-xs">{analysisResult.domain}</span>
+                  <span className={`badge ${analysisResult.is_suspicious ? 'badge-red' : 'badge-green'}`}>
+                    {analysisResult.is_suspicious ? 'Suspicious' : 'Clean'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div>
+                    <div className={`${dark ? 'text-gray-400' : 'text-gray-500'}`}>Confidence</div>
+                    <div className="font-mono font-semibold">{(analysisResult.confidence * 100).toFixed(0)}%</div>
+                  </div>
+                  <div>
+                    <div className={`${dark ? 'text-gray-400' : 'text-gray-500'}`}>DGA</div>
+                    <div className="font-mono font-semibold">{(analysisResult.dga_score * 100).toFixed(0)}%</div>
+                  </div>
+                  <div>
+                    <div className={`${dark ? 'text-gray-400' : 'text-gray-500'}`}>Heuristic</div>
+                    <div className="font-mono font-semibold">{(analysisResult.heuristic_score * 100).toFixed(0)}%</div>
+                  </div>
+                </div>
               </div>
-              <div>
-                <div className={`text-xs ${dark ? 'text-gray-400' : 'text-gray-500'}`}>DGA Score</div>
-                <div className="font-mono font-semibold">{(analysisResult.dga_score * 100).toFixed(1)}%</div>
-              </div>
-              <div>
-                <div className={`text-xs ${dark ? 'text-gray-400' : 'text-gray-500'}`}>Heuristic Score</div>
-                <div className="font-mono font-semibold">{(analysisResult.heuristic_score * 100).toFixed(1)}%</div>
-              </div>
-            </div>
+            )}
           </div>
-        )}
+        </details>
       </div>
 
       <div className="card">
         <div className={`px-4 py-3 border-b flex items-center justify-between ${dark ? 'border-gray-700' : 'border-gray-200'}`}>
-          <h2 className="font-semibold">Detected Threats</h2>
-          <span className={`text-sm ${dark ? 'text-gray-400' : 'text-gray-500'}`}>
+          <div>
+            <h2 className="font-semibold">Detected Threats</h2>
+            <p className={`text-xs mt-1 ${dark ? 'text-gray-400' : 'text-gray-500'}`}>
+              Auto-detected from DNS capture, PCAP uploads, and manual analysis
+            </p>
+          </div>
+          <span className={`text-sm font-mono ${dark ? 'text-gray-300' : 'text-gray-600'}`}>
             {threats?.length ?? 0} total
           </span>
         </div>
@@ -177,8 +195,13 @@ export default function ThreatMonitor() {
               ))}
               {(!threats || threats.length === 0) && (
                 <tr>
-                  <td colSpan={6} className={`text-center py-8 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>
-                    No threats detected yet. Start DNS capture or upload a PCAP file.
+                  <td colSpan={6} className={`text-center py-12 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>
+                    <div className="flex flex-col items-center gap-2">
+                      <p className="text-sm">No threats detected yet</p>
+                      <p className="text-xs">
+                        Start DNS capture on the <a href="/graph" className="underline">Network Analysis</a> page or upload a PCAP file
+                      </p>
+                    </div>
                   </td>
                 </tr>
               )}
