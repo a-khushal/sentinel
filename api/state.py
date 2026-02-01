@@ -70,23 +70,26 @@ class AppState:
         if auto_report and self.blockchain and self.blockchain_connected:
             confidence = threat.get('confidence', 0)
             if confidence >= 0.8:
-                try:
-                    threat_type_map = {
-                        'dga': ThreatType.DGA,
-                        'c2': ThreatType.C2,
-                        'tunnel': ThreatType.TUNNEL,
-                    }
-                    tx_hash = self.blockchain.report_threat(
-                        domain=threat['domain'],
-                        threat_type=threat_type_map.get(threat.get('threat_type', ''), ThreatType.UNKNOWN),
-                        confidence=int(confidence * 100),
-                        evidence=f"Auto-detected by SENTINEL ML at {threat.get('timestamp', '')}"
-                    )
-                    threat['reported_to_blockchain'] = True
-                    threat['tx_hash'] = tx_hash
-                    print(f"Auto-reported {threat['domain']} to blockchain: {tx_hash}")
-                except Exception as e:
-                    print(f"Auto-report failed for {threat['domain']}: {e}")
+                def _report():
+                    try:
+                        threat_type_map = {
+                            'dga': ThreatType.DGA,
+                            'c2': ThreatType.C2,
+                            'tunnel': ThreatType.TUNNEL,
+                        }
+                        tx_hash = self.blockchain.report_threat(
+                            domain=threat['domain'],
+                            threat_type=threat_type_map.get(threat.get('threat_type', ''), ThreatType.UNKNOWN),
+                            confidence=int(confidence * 100),
+                            evidence=f"Auto-detected by SENTINEL ML at {threat.get('timestamp', '')}"
+                        )
+                        with self._lock:
+                            threat['reported_to_blockchain'] = True
+                            threat['tx_hash'] = tx_hash
+                        print(f"Auto-reported {threat['domain']} to blockchain: {tx_hash}")
+                    except Exception as e:
+                        print(f"Auto-report failed for {threat['domain']}: {e}")
+                threading.Thread(target=_report, daemon=True).start()
     
     def increment_queries(self, count: int = 1):
         with self._lock:

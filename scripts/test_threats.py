@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import requests
 import time
+from datetime import datetime
 from scripts.generate_dga import random_dga, cryptolocker_dga, necurs_dga
 
 API_BASE = "http://localhost:8000/api/v1"
@@ -19,7 +20,8 @@ def inject_test_threats():
     print()
     
     # Generate some DGA domains
-    dga_domains = random_dga(count=10) + cryptolocker_dga(count=5) + necurs_dga(count=5)
+    date = datetime.now()
+    dga_domains = random_dga(count=10) + cryptolocker_dga(date, count=5) + necurs_dga(date, count=5)
     benign_domains = [
         "google.com", "facebook.com", "github.com", "stackoverflow.com",
         "reddit.com", "youtube.com", "amazon.com", "microsoft.com"
